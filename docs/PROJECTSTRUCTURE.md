@@ -26,6 +26,8 @@ Wrong guesses, already corrected by the owner. Add to this list, keep it flat.
 - `.txt`/`.docx` stay browser-parsed because the client needs the text for
   in-browser grammar highlighting later. Only `.pdf` is server-only.
 - The daily limit is anti-spam for anonymous visitors, not a billing plan.
+- `.env` is a placeholder, not a leak — read `AGENT_NOTE` at the top of it.
+  No security essays.
 - Some seams are unwired on purpose. Ask before completing one.
 
 ---
