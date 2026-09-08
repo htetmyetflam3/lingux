@@ -28,6 +28,9 @@ Wrong guesses, already corrected by the owner. Add to this list, keep it flat.
 - The daily limit is anti-spam for anonymous visitors, not a billing plan. The
   gates exist to stop disk dumping and adversarial input (e.g. a 20,000-char
   tail like `နော` + `းးးး…`), not to monetise.
+- `က္က` → `ဣ` in the syllable output is **correct**, not a bug. Pali does not
+  stack `က္က`; it uses `ဣ`. Words showing `က္က` (e.g. `ကုက္ကိုပင်`) are
+  Burmese Pali-style loanwords, not actual Pali.
 - The Engine does no Burmese linguistics with regex. The segmenter/walkers are
   table lookups + tree descent, which is why a long-tail input that would
   backtrack a regex engine to death runs in ~0.5s here. Regex appears only in
