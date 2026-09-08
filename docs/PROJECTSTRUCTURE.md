@@ -25,7 +25,16 @@ Wrong guesses, already corrected by the owner. Add to this list, keep it flat.
   a testing path only.
 - `.txt`/`.docx` stay browser-parsed because the client needs the text for
   in-browser grammar highlighting later. Only `.pdf` is server-only.
-- The daily limit is anti-spam for anonymous visitors, not a billing plan.
+- The daily limit is anti-spam for anonymous visitors, not a billing plan. The
+  gates exist to stop disk dumping and adversarial input (e.g. a 20,000-char
+  tail like `နော` + `းးးး…`), not to monetise.
+- The Engine does no Burmese linguistics with regex. The segmenter/walkers are
+  table lookups + tree descent, which is why a long-tail input that would
+  backtrack a regex engine to death runs in ~0.5s here. Regex appears only in
+  `tagger.js` (dates/phones/IDs) and build-time JSON streaming.
+- `master.json` is now `master.json.enc`; `readSecureText/readSecureJson`
+  handle it. The Engine expects its own deployment layout (`ENGINE/Part/...`),
+  which does not exist in this repo — bridge it, do not repoint the constants.
 - `.env` is a placeholder, not a leak — read `AGENT_NOTE` at the top of it.
   No security essays.
 - Some seams are unwired on purpose. Ask before completing one.
@@ -45,7 +54,8 @@ Raised in chat, never finished. Do not guess additions.
   session/quota token. Free tier keeps the daily anti-spam limit.
 - In-browser grammar highlighting from the client-side text.
 - `finalizeUpload()` and `incrementQuota()` have no callers since the save gate
-  landed — keep or delete, undecided.
+  landed. Owner decided to keep them; `commitSubmission()` is the only path
+  that should be called.
 
 ---
 
