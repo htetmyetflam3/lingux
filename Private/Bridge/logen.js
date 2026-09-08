@@ -263,6 +263,7 @@ const C = {
   comp:  '\x1b[30;95m',
   decomp:'\x1b[30;94m',
   sys:   '\x1b[30;90m',
+  http:  '\x1b[30;46m',   // black on cyan — Site HTTP access log
   ok:    '\x1b[38;5;114m',
   err:   '\x1b[38;5;203m',
   warn:  '\x1b[38;5;215m',
@@ -285,6 +286,7 @@ const MOD_BADGE = {
   COMPOSER:   { code: C.comp,   label: 'COMP' },
   DECOMPOSER: { code: C.decomp, label: 'DECOMP' },
   SYSTEM:     { code: C.sys,    label: 'SYS' },
+  HTTP:       { code: C.http,   label: 'HTTP' },
 };
 
 const STATUS_CLR = {
@@ -382,6 +384,26 @@ function writeConsole(module, level, event, data) {
   console.log(
     `${tsStr} ${modStr} ${clr}${C.bold}${level.toUpperCase().padEnd(7)}${C.rst} ${evtStr}${extra}`
   );
+}
+
+// ── Shared console styling ──────────────────────────────────────────────
+// Exported so other processes (the Site's HTTP access log) can print in the
+// exact same palette instead of duplicating these codes and drifting from
+// them. Read-only by convention: nothing here mutates engine state.
+export const palette = C;
+export const moduleBadges = MOD_BADGE;
+export const statusColors = STATUS_CLR;
+/** The engine's timestamp format (Asia/Yangon, ms precision). */
+export function stamp() {
+  return ts();
+}
+/** One console line in the engine's exact shape: ts | badge | LEVEL | event */
+export function formatConsoleLine(module, level, event, extra = '') {
+  const badge = MOD_BADGE[module] || MOD_BADGE.SYSTEM;
+  const clr = STATUS_CLR[level] || C.info;
+  const modStr = `${badge.code} ${badge.label.padEnd(6)} ${C.rst}`;
+  const tsStr = `${C.comment}${ts()}${C.rst}`;
+  return `${tsStr} ${modStr} ${clr}${C.bold}${level.toUpperCase().padEnd(7)}${C.rst} ${event}${extra}`;
 }
 
 export function emitLog(module, level, event, data = {}, top = false) {

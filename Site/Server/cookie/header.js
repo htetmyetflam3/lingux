@@ -1,3 +1,22 @@
+// devbypass.js is an OPTIONAL, removable module. Delete the file and this
+// import resolves to the stub below, which means the gate simply stays
+// ENFORCED — nothing throws, nothing else changes. Only DEV_BYPASS_SESSION
+// lives in that module; DEV_BYPASS_IP / DEV_BYPASS_HEADER / DEV_BYPASS_QUOTA
+// are read straight from process.env and keep their original behaviour with
+// or without it.
+//
+// A MISSING module is the supported case and stays silent. A BROKEN one is a
+// real bug, so anything other than "devbypass.js not found" is re-thrown.
+let sessionBypassEnabled = () => false;
+try {
+  ({ sessionBypassEnabled } = await import('./devbypass.js'));
+} catch (err) {
+  const removed =
+    err?.code === 'ERR_MODULE_NOT_FOUND' &&
+    String(err.message).includes('devbypass');
+  if (!removed) throw err;
+}
+
 export function headerCheck(req, res, next) {
   const userAgent = req.headers['user-agent'];
   if (!userAgent || typeof userAgent !== 'string' || userAgent.length < 5) {
@@ -6,7 +25,9 @@ export function headerCheck(req, res, next) {
       .json({ status: 'rejected', reason: 'Missing or invalid User-Agent' });
   }
   const botPattern = /curl|wget|python|scrapy|bot|crawler|spider|headless/i;
-  if (botPattern.test(userAgent)) {
+  // DEV_BYPASS_SESSION lets a bot-shaped UA through so agents can exercise the
+  // upload path with curl. Never active when NODE_ENV=production.
+  if (botPattern.test(userAgent) && !sessionBypassEnabled()) {
     return res
       .status(403)
       .json({ status: 'rejected', reason: 'Automated access denied' });

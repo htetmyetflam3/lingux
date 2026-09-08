@@ -45,6 +45,7 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		resultsPanel: document.getElementById("resultsPanel"),
 		resultsBadge: document.getElementById("resultStatusBadge"),
 		resultsContent: document.getElementById("resultsContent"),
+		quotaStatus: document.getElementById("quotaStatus"),
 	};
 	console.log("[main.js] DOM refs:", {
 		textarea: !!ui.textarea,
@@ -68,6 +69,10 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 	let isSubmitting = false;
 	const pollTimer = null;
 	let dragDepth = 0;
+	// Daily quota, read from GET /api/quota. null = not asked yet; the Check
+	// button is never blocked on a quota we failed to read (the server gate in
+	// incoming.js is still the real enforcement).
+	let quota = null;
 	function hasText() {
 		return ui.textarea.value.trim().length > 0;
 	}
@@ -103,6 +108,60 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		if (hasText() || hasFile()) {
 			hideOverlay();
 		}
+		// Quota gates the button, but only when we actually know the answer.
+		if (!isSubmitting) {
+			ui.checkBtn.disabled = quotaBlocked();
+		}
+	}
+	// ── Daily quota ─────────────────────────────────────────────────────────
+	// Asked up front (page load) and re-read after every submit, so the limit
+	// is visible BEFORE the user picks a file — not discovered as a 429 after
+	// they already committed one. The server still enforces it in incoming.js;
+	// this is the courtesy half of the same rule.
+	function quotaBlocked() {
+		return quota !== null && quota.allowed === false;
+	}
+	/** Adopt a quota object handed back by an API response. */
+	function applyQuota(next) {
+		if (!next || typeof next.allowed !== "boolean") return false;
+		quota = next;
+		renderQuota();
+		refreshUI();
+		return true;
+	}
+	function renderQuota() {
+		if (!ui.quotaStatus) return;
+		if (!quota) {
+			ui.quotaStatus.classList.add("d-none");
+			return;
+		}
+		ui.quotaStatus.classList.remove("d-none");
+		if (quota.bypass) {
+			ui.quotaStatus.className = "text-muted";
+			ui.quotaStatus.textContent = "Daily limit: bypassed (dev)";
+			return;
+		}
+		if (quota.remaining > 0) {
+			ui.quotaStatus.className = "text-muted";
+			ui.quotaStatus.textContent = `${quota.remaining} of ${quota.limit} checks left today`;
+		} else {
+			ui.quotaStatus.className = "text-danger fw-medium";
+			ui.quotaStatus.textContent = "Daily limit reached — try again tomorrow";
+		}
+	}
+	async function fetchQuota() {
+		try {
+			const res = await fetch(`${API_BASE}/quota`);
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			quota = await res.json();
+		} catch (e) {
+			// Never block the user because OUR status read failed — leave the
+			// button live and let the server gate answer for real.
+			logger.log("[quota] unavailable:", e.message);
+			quota = null;
+		}
+		renderQuota();
+		refreshUI();
 	}
 	function hideResults() {
 		ui.resultsPanel.classList.add("d-none");
@@ -235,38 +294,6 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 			console.warn("Mammoth warnings:", result.messages);
 		return result.value;
 	}
-	async function extractPdf(file) {
-		await loadScript(
-			"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",
-			"pdfjsLib",
-		);
-		const pdfjsLib = window.pdfjsLib;
-		if (!pdfjsLib) throw new Error("PDF.js failed to load");
-
-		if (pdfjsLib.GlobalWorkerOptions) {
-			pdfjsLib.GlobalWorkerOptions.workerSrc =
-				"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-		}
-		const arrayBuffer = await new Promise((resolve, reject) => {
-			if (file.arrayBuffer) {
-				file.arrayBuffer().then(resolve).catch(reject);
-			} else {
-				const r = new FileReader();
-				r.onload = () => resolve(r.result);
-				r.onerror = () => reject(new Error("Failed to read PDF"));
-				r.readAsArrayBuffer(file);
-			}
-		});
-		const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-		let text = "";
-		for (let i = 1; i <= pdf.numPages; i++) {
-			const page = await pdf.getPage(i);
-			const content = await page.getTextContent();
-			text += content.items.map((it) => it.str).join(" ") + "\n";
-			animateProgress(i / pdf.numPages);
-		}
-		return text;
-	}
 	async function extractText(file) {
 		const ext = file.name.split(".").pop().toLowerCase();
 		switch (ext) {
@@ -274,8 +301,10 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 				return await extractTxt(file);
 			case "docx":
 				return await extractDocx(file);
+			// null = "the server owns this format". The file is uploaded raw and
+			// no text field is sent, so incoming.js has nothing to trust and must
+			// extract it itself.
 			case "pdf":
-				return await extractPdf(file);
 			case "doc":
 				return null;
 			default:
@@ -294,8 +323,16 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		initProgressBar();
 		setProgress(0);
 		try {
-			if (ext === "doc") {
-				notyf.success(`${file.name} ready. Server will parse .doc.`);
+			if (ext === "doc" || ext === "pdf") {
+				// Server-parsed formats. A PDF stores glyph ids, not text: pdf.js
+				// resolves them through the file's own ToUnicode maps, which on
+				// Zawgyi documents point at imposter lookalikes, so the browser
+				// produces confident garbage. The Python extractor reads the
+				// embedded font instead, so the PDF is uploaded unparsed.
+				notyf.success(
+					`${file.name} ready. The server will extract the text.`,
+				);
+				extractedText = "";
 				ui.textarea.value = "";
 				animateProgress(1.0);
 			} else {
@@ -335,14 +372,16 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		});
 		if (!res.ok) {
 			const err = await res.json().catch(() => ({}));
-			throw new Error(err.error || "Submit failed");
+			const e = new Error(err.error || "Submit failed");
+			e.quota = err.quota; // a 429 carries the live counter — keep it
+			throw e;
 		}
 		return res.json();
 	}
 	async function submitFile(file, clientText) {
 		const fd = new FormData();
 		fd.append("file", file);
-		// Browser-parsed text (mammoth / pdf.js / FileReader) travels with the
+		// Browser-parsed text (mammoth / FileReader) travels with the
 		// file so the server can skip re-parsing — the original is still
 		// uploaded and silently kept for reference.
 		if (clientText) fd.append("text", clientText);
@@ -352,17 +391,48 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		});
 		if (!res.ok) {
 			const err = await res.json().catch(() => ({}));
-			throw new Error(err.error || "Upload failed");
+			const e = new Error(err.error || "Upload failed");
+			e.quota = err.quota; // a 429 carries the live counter — keep it
+			throw e;
 		}
 		return res.json();
 	}
-	async function pollResult(formId, retries = 60) {
+	// Poll by formId. A .pdf upload answers immediately and extracts behind
+	// that token, so this loop now reports two different stages:
+	//
+	//   202 extracting → the Python extractor is still reading the file
+	//   200 extracted  → text is ready (fill the editor), engine still to come
+	//   422 failed     → terminal; stop polling and say why
+	//   404           → nothing yet, keep waiting (unchanged)
+	//
+	// onText fires once, the moment the text exists, so the user sees their
+	// document as soon as it is parsed instead of waiting for the whole run.
+	async function pollResult(formId, retries = 60, onText = null) {
 		if (retries <= 0) throw new Error("Result timeout");
 		const res = await fetch(`${API_BASE}/result`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ formId }),
 		});
+
+		if (res.status === 202) {
+			const body = await res.json().catch(() => ({}));
+			notyf.open({
+				type: "info",
+				message: body.fileName
+					? `Extracting ${body.fileName}…`
+					: "Extracting text…",
+				duration: 1500,
+			});
+			await new Promise((r) => setTimeout(r, 1000));
+			return pollResult(formId, retries - 1, onText);
+		}
+
+		if (res.status === 422) {
+			const body = await res.json().catch(() => ({}));
+			throw new Error(body.error || "Extraction failed");
+		}
+
 		if (res.status === 404) {
 			notyf.open({
 				type: "info",
@@ -370,10 +440,24 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 				duration: 1500,
 			});
 			await new Promise((r) => setTimeout(r, 2000));
-			return pollResult(formId, retries - 1);
+			return pollResult(formId, retries - 1, onText);
 		}
+
 		if (!res.ok) throw new Error("Result fetch failed");
-		return res.json();
+		const body = await res.json();
+
+		if (body.text && onText) {
+			onText(body);
+			onText = null; // deliver the text once, then go back to waiting
+		}
+
+		// Text is in, engine verdict is not — keep polling for the real result.
+		if (body.status === "extracted") {
+			await new Promise((r) => setTimeout(r, 2000));
+			return pollResult(formId, retries - 1, onText);
+		}
+
+		return body;
 	}
 	function renderResult(data) {
 		const payload = data.data || data;
@@ -452,9 +536,17 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 	});
 	ui.checkBtn.addEventListener("click", async () => {
 		console.log("[checkBtn] clicked, isSubmitting:", isSubmitting);
+		let quotaFromResponse = false;
 		try {
 			if (isSubmitting) {
 				logger.log("[checkBtn] blocked, already submitting");
+				return;
+			}
+			// Quota is checked here, before the file/text is even looked at,
+			// so nothing is uploaded on a submission that cannot be accepted.
+			if (quotaBlocked()) {
+				logger.log("[checkBtn] blocked, daily quota reached");
+				notyf.error("Daily limit reached — try again tomorrow.");
 				return;
 			}
 			const text = ui.textarea.value.trim();
@@ -480,7 +572,7 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 			let data;
 			if (currentFile) {
 				// ALWAYS upload the original file — even when the browser
-				// parsed it client-side (docx/pdf/txt) — so the server
+				// parsed it client-side (docx/txt) — so the server
 				// silently keeps a reference copy. The extracted text is
 				// sent along in the 'text' field; only .doc (which the
 				// browser cannot parse) goes without it.
@@ -499,6 +591,9 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 				ui.textarea.value = formatBurmeseText(data.text);
 				refreshUI();
 			}
+			// The submit response carries the counter this submission just
+			// spent — charged server-side at the instant the .txt hit disk.
+			quotaFromResponse = applyQuota(data?.quota);
 			console.log("[checkBtn] got formId:", formId);
 			notyf.open({
 				type: "info",
@@ -506,19 +601,34 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 				duration: 2000,
 			});
 			logger.log("[checkBtn] polling result...");
-			const result = await pollResult(formId);
+			const result = await pollResult(formId, 60, (staged) => {
+				// Server-extracted text (.pdf/.doc) arriving after the fast 202.
+				if (staged.text) {
+					extractedText = staged.text;
+					ui.textarea.value = formatBurmeseText(staged.text);
+					refreshUI();
+				}
+				// This is the first response that can carry the charged counter:
+				// the save gate bills when the .txt lands, which happened after
+				// the submit reply had already gone out.
+				if (applyQuota(staged.quota)) quotaFromResponse = true;
+			});
 			console.log("[checkBtn] result:", result);
 			renderResult(result);
 		} catch (e) {
 			logger.log("ERROR:", "[checkBtn] CRASH:", e);
 			logger.log("ERROR:", "[checkBtn] stack:", e.stack);
 			notyf.error(e.message || "Submission failed");
+			quotaFromResponse = applyQuota(e.quota);
 			ui.resultsBadge.className = "badge bg-danger";
 			ui.resultsBadge.textContent = "Error";
 		} finally {
 			isSubmitting = false;
 			ui.checkBtn.disabled = false;
 			logger.log("[checkBtn] finally, reset state");
+			// The response usually carries the counter already; only ask the
+			// server when it did not (network error, non-JSON failure).
+			if (!quotaFromResponse) await fetchQuota();
 		}
 	});
 	ui.textarea.addEventListener("input", () => {
@@ -562,5 +672,8 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 	window.addEventListener("resize", resizeTextarea);
 	refreshUI();
 	resizeTextarea();
+	// Ask for the daily quota up front — before any file is chosen — so the
+	// Check button already knows whether a submission can be accepted.
+	fetchQuota();
 	logger.log("[main.js] Initialized successfully. All listeners attached.");
 })();

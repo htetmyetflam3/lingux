@@ -1,6 +1,25 @@
-import logger from '../../Private/Bridge/logen.js';
+import logger from '../../../Private/Bridge/logen.js';
 import { pool } from '../db/db.js';
 import { decodeCookie, encodeCookie } from './codec.js';
+// devbypass.js is an OPTIONAL, removable module. Delete the file and this
+// import resolves to the stub below, which means the gate simply stays
+// ENFORCED — nothing throws, nothing else changes. Only DEV_BYPASS_SESSION
+// lives in that module; DEV_BYPASS_IP / DEV_BYPASS_HEADER / DEV_BYPASS_QUOTA
+// are read straight from process.env and keep their original behaviour with
+// or without it.
+//
+// A MISSING module is the supported case and stays silent. A BROKEN one is a
+// real bug, so anything other than "devbypass.js not found" is re-thrown.
+let sessionBypassEnabled = () => false;
+let devIdentity = () => null;
+try {
+  ({ sessionBypassEnabled, devIdentity } = await import('./devbypass.js'));
+} catch (err) {
+  const removed =
+    err?.code === 'ERR_MODULE_NOT_FOUND' &&
+    String(err.message).includes('devbypass');
+  if (!removed) throw err;
+}
 export async function cookieDBCheck(req, res, next) {
   try {
     const reqIp = req.trustedIp || req.socket?.remoteAddress || '';
@@ -15,6 +34,25 @@ export async function cookieDBCheck(req, res, next) {
         userId: 'bypass-visitor',
         timestamp: new Date().toISOString(),
       };
+      return next();
+    }
+    // ── DEV_BYPASS_SESSION ──────────────────────────────────────────────
+    // Skips the users-table lookup (no DB on a dev box) WITHOUT discarding
+    // the identity: a cookie sent by the caller is still decoded and used,
+    // and a caller with no cookie runs as the one cookieGenerator just
+    // minted for this request. So visitorHash / sessionId / userId are all
+    // real values, not placeholders. Never active when NODE_ENV=production.
+    if (sessionBypassEnabled()) {
+      const sent = req.cookies.userData ? decodeCookie(req.cookies.userData) : null;
+      if (sent?.userId) req.cookieData = sent;
+
+      const identity = devIdentity(req);
+      req.userId = identity.userId;
+      req.user = identity.user;
+      req.visitorHash = identity.visitorHash;
+      req.cookieData = identity.cookieData;
+      req.sessionId = identity.sessionId;
+      req.devBypassSession = true;
       return next();
     }
     const rawCookie = req.cookies.userData;

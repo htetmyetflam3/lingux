@@ -1,10 +1,28 @@
-import logger from '../../Private/Bridge/logen.js';
-import { LOGS_DIR } from '../../Site/Public/_file/paths.js';
+import logger from '../../../Private/Bridge/logen.js';
+import { LOGS_DIR } from '../../Public/_file/paths.js';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { createOrUpdateCookie } from '../db/cookie.js';
 import { encodeCookie, decodeCookie } from './codec.js';
+// devbypass.js is an OPTIONAL, removable module. Delete the file and this
+// import resolves to the stub below, which means the gate simply stays
+// ENFORCED — nothing throws, nothing else changes. Only DEV_BYPASS_SESSION
+// lives in that module; DEV_BYPASS_IP / DEV_BYPASS_HEADER / DEV_BYPASS_QUOTA
+// are read straight from process.env and keep their original behaviour with
+// or without it.
+//
+// A MISSING module is the supported case and stays silent. A BROKEN one is a
+// real bug, so anything other than "devbypass.js not found" is re-thrown.
+let sessionBypassEnabled = () => false;
+try {
+  ({ sessionBypassEnabled } = await import('./devbypass.js'));
+} catch (err) {
+  const removed =
+    err?.code === 'ERR_MODULE_NOT_FOUND' &&
+    String(err.message).includes('devbypass');
+  if (!removed) throw err;
+}
 const logDir = LOGS_DIR;
 fs.mkdirSync(logDir, { recursive: true });
 function safeLog(filename, data) {
@@ -83,6 +101,15 @@ export const cookieGenerator = async (req, res, next) => {
     if (isBypass) {
       cookieData.dbUserId = 1;
       safeLog('cookie.log', `[${nowIso}] BYPASS_IP ${cfHeader} (no DB call)\n`);
+    } else if (sessionBypassEnabled()) {
+      // DEV_BYPASS_SESSION: the cookie is still built, encoded and returned —
+      // only the users-table upsert is skipped, because the sandbox/dev box has
+      // no DB reachable. Never active when NODE_ENV=production.
+      cookieData.dbUserId = 1;
+      safeLog(
+        'cookie.log',
+        `[${nowIso}] BYPASS_SESSION ${cookieData.userId} (no DB call)\n`,
+      );
     } else {
       const dbUserId = await createOrUpdateCookie({
         ...cookieData,

@@ -30,8 +30,24 @@ export function createInputHandler({ textHolder, metadataGuard, rawSaver }) {
       },
     });
 
-    // 4) Finalize submissions row
-    await metadataGuard.finalizeUpload({
+    // 3b) THE SAVE GATE — and the only one.
+    //
+    // A submission is recorded and charged when, and only when, the raw .txt
+    // exists on disk. Every route converges here, so all of them are treated
+    // by the same rule at the same moment:
+    //
+    //   PDF     → Python extracts → txt saved → recorded + charged
+    //   browser → parsed client-side → txt saved → recorded + charged
+    //   .doc    → parsed server-side → txt saved → recorded + charged
+    //
+    // Acting any earlier bills the user for work that may still fail; acting
+    // any later means a saved artifact was never paid for. The write above is
+    // the first instant where the user provably got something.
+    //
+    // The row and the charge go in ONE transaction (commitSubmission), so a
+    // half-finished submission cannot exist: either the row says 'processed'
+    // and the user was charged, or neither happened.
+    await metadataGuard.commitSubmission({
       userId: req.userId,
       visitorHash: req.visitorHash,
       formId,

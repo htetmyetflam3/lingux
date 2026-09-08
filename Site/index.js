@@ -11,12 +11,11 @@ import 'dotenv/config';
 import express from "express";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
-import morgan from "morgan";
 import path from "path";
 import fs from "fs";
-import util from "util";
 import crypto from "crypto";
 import multer from "multer";
+import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 
 import { pool } from "./Server/db/db.js";
@@ -24,6 +23,24 @@ import { createSessionMiddleware } from "./Server/db/session.js";
 import { headerCheck } from "./Server/cookie/header.js";
 import { cookieGenerator } from "./Server/cookie/cgen.js";
 import { cookieDBCheck } from "./Server/cookie/sanitized.js";
+// devbypass.js is an OPTIONAL, removable module. Delete the file and this
+// import resolves to the stub below, which means the gate simply stays
+// ENFORCED — nothing throws, nothing else changes. Only DEV_BYPASS_SESSION
+// lives in that module; DEV_BYPASS_IP / DEV_BYPASS_HEADER / DEV_BYPASS_QUOTA
+// are read straight from process.env and keep their original behaviour with
+// or without it.
+//
+// A MISSING module is the supported case and stays silent. A BROKEN one is a
+// real bug, so anything other than "devbypass.js not found" is re-thrown.
+let sessionBypassBanner = () => null;
+try {
+  ({ sessionBypassBanner } = await import('./Server/cookie/devbypass.js'));
+} catch (err) {
+  const removed =
+    err?.code === 'ERR_MODULE_NOT_FOUND' &&
+    String(err.message).includes('devbypass');
+  if (!removed) throw err;
+}
 import { createRequest } from "./Server/db/request.js";
 import { createIncomingRouter } from "./Server/gateway/api/incoming.js";
 import { createOutgoingRouter } from "./Server/gateway/api/outgoing.js";
@@ -32,14 +49,26 @@ import {
   LOGS_DIR,
   inputDirFor,
   ensurePraserDirs,
-} from "./Site/Public/_file/paths.js";
+} from "./Public/_file/paths.js";
+import {
+  ACCEPTED_EXTENSIONS,
+  MAX_UPLOAD_BYTES,
+} from "./Public/_file/magic.js";
+import { attachSqlLogging } from "./Server/db/sqlLog.js";
+import {
+  createHttpConsoleLogger,
+  createHttpFileLogger,
+} from "./Server/log/httpLog.js";
+import { createJobRegistry } from "./Server/gateway/proxy/jobs.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const projectRoot = process.cwd();
 
 // ── Site layout (restructured repo) ────────────────────────────────────────
-const STATIC_DIR = path.join(projectRoot, "Site", "Public", "STATIC"); // build tools + vite config
+// Anchored to THIS FILE, not process.cwd(): Server/ moved under Site/, and the
+// server must start the same way from the repo root or from Site/.
+const SITE_DIR = path.dirname(fileURLToPath(import.meta.url));         // .../Site
+const STATIC_DIR = path.join(SITE_DIR, "Public", "STATIC");            // build tools + vite config
 const FRONTEND_DIR = path.join(STATIC_DIR, "frontend");                // vite outDir (built SPA)
 
 // ── Directories ───────────────────────────────────────────────────────────
@@ -50,19 +79,18 @@ ensurePraserDirs();
 
 // ── Logging ───────────────────────────────────────────────────────────────
 const logStream = fs.createWriteStream(path.join(LOGS_DIR, "access.log"), { flags: "a" });
-app.use(morgan("combined", { stream: logStream }));
-app.use(morgan("dev"));
+// File: plain 'combined' (no ANSI — a log file has to stay greppable).
+// Console: logen's badge palette, so HTTP traffic reads as part of the same
+// run as every other line the system prints. See Server/log/httpLog.js.
+app.use(createHttpFileLogger(logStream));
+app.use(createHttpConsoleLogger());
 
 // ── SQL query logging ───────────────────────────────────────────────────
 const sqlLogStream = fs.createWriteStream(path.join(LOGS_DIR, "sql.log"), { flags: "a" });
-const originalQuery = pool.query.bind(pool);
-pool.query = async function (sql, values, ...rest) {
-  const timestamp = new Date().toISOString();
-  const sqlStr = typeof sql === "string" ? sql : sql?.sql || "[prepared]";
-  sqlLogStream.write(`[${timestamp}] SQL: ${sqlStr}\n`);
-  if (values !== undefined) sqlLogStream.write(`[${timestamp}] Values: ${util.inspect(values)}\n`);
-  return originalQuery(sql, values, ...rest);
-};
+// ── SQL logging ─────────────────────────────────────────────────────────
+// Covers pool.query AND pooled connections, so commitSubmission's transaction
+// (BEGIN → submissions → quota → COMMIT) shows up too. See db/sqlLog.js.
+attachSqlLogging(pool, (line) => sqlLogStream.write(line));
 
 // ── Core middleware ─────────────────────────────────────────────────────
 app.use(cookieParser());
@@ -133,6 +161,13 @@ const request = createRequest({ pool });
 // ── Multer upload ───────────────────────────────────────────────────────
 // Uploads go straight into the PRASER python project, sorted by file type:
 // .txt → upload/input/txt, .pdf → upload/input/pdf, .doc/.docx → upload/input/docx
+//
+// multer's job here is the ENVELOPE, not the contents: it parses the
+// multipart body, caps how much of it we accept, and refuses extensions we
+// have no parser for — all before a single byte is written to disk. It cannot
+// tell you whether a ".pdf" is really a PDF, because it only ever sees the
+// client-supplied filename and mimetype. That check is a separate step, on the
+// bytes, in _file/magic.js.
 const upload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, inputDirFor(file.originalname)),
@@ -142,19 +177,41 @@ const upload = multer({
         `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`,
       ),
   }),
+  limits: {
+    fileSize: MAX_UPLOAD_BYTES, // matches MAX_FILE_SIZE in the frontend
+    files: 1,                   // one submission is one document
+    fields: 10,                 // formId, text, originalName… nothing else
+  },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    if (!ACCEPTED_EXTENSIONS.includes(ext)) {
+      const err = new Error(
+        `Unsupported file type: ${ext || "(none)"}. Accepted: ${ACCEPTED_EXTENSIONS.join(", ")}`,
+      );
+      err.code = "UNSUPPORTED_FILE_TYPE";
+      return cb(err);
+    }
+    cb(null, true);
+  },
 });
 
 // ── Route wiring ────────────────────────────────────────────────────────
+// Extraction jobs: started by /api/submit, collected by /api/result.
+// One registry, shared — two would mean the poller could never see the work.
+const jobs = createJobRegistry();
+
 const incomingRouter = createIncomingRouter({
   upload,
   pool,
   request,
+  jobs,
   // fsmEndpoint / fsmKey removed — Playground no longer pushes to FSM
 });
 
 const outgoingRouter = createOutgoingRouter({
   pool,
   request,
+  jobs,
 });
 
 const hiddenRouter = createHiddenRouter({
@@ -169,4 +226,6 @@ app.use("/api", hiddenRouter);   // mounts /api/process + /api/hidden/raw/:submi
 
 // ── Start ───────────────────────────────────────────────────────────────
 buildClient();
-app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+const bypassBanner = sessionBypassBanner();
+if (bypassBanner) console.warn(bypassBanner);
+app.listen(PORT, "0.0.0.0", () => console.log(`Server running at http://localhost:${PORT}`));

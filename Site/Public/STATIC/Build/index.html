@@ -94,6 +94,13 @@
 
           </div>
 
+          <!-- Daily quota: filled by main.js from GET /api/quota on load and
+               after every submit, so the user sees the limit before spending
+               a submission rather than after. -->
+          <div class="d-flex justify-content-end mt-2">
+            <small id="quotaStatus" class="text-muted d-none"></small>
+          </div>
+
           <!-- Stats -->
           <div class="small text-muted mt-2">
             <span id="characterCount">0 chars</span>
@@ -128,7 +135,10 @@
     </footer>
   </div>
 
-  <!-- pdf.js is loaded at runtime from cdnjs by main.js (extractPdf), including its own worker -->
+  <!-- mammoth.js is loaded at runtime from cdnjs by main.js (extractDocx) for .docx only.
+       PDFs are NOT parsed in the browser: pdf.js reads a PDF's own ToUnicode maps, which on
+       Zawgyi documents point at imposter lookalikes, so it returns confident garbage. PDFs
+       upload raw and are extracted server-side by PRASER/Python. -->
   <script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/progressbar.js@1.1.1/dist/progressbar.min.js"></script>
 

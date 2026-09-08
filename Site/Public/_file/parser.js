@@ -1,7 +1,26 @@
 import fs from 'fs/promises';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { createPythonPdfParser } from './pythonPdf.js';
 const execAsync = promisify(exec);
+
+/**
+ * Default .docx parser — mammoth, server-side.
+ *
+ * The frontend normally sends the text it already extracted, so this is the
+ * fallback for callers that cannot run mammoth in a browser (agents, API
+ * clients, or a client-side extraction that failed). mammoth PARSES; it does
+ * not validate — the zip signature is checked before we get here, in
+ * _file/magic.js.
+ */
+async function defaultDocxParser(filePath) {
+  const { default: mammoth } = await import('mammoth');
+  const { value, messages } = await mammoth.extractRawText({ path: filePath });
+  if (messages?.length) {
+    console.warn('[parser] mammoth warnings:', messages.slice(0, 3));
+  }
+  return value;
+}
 /**
  * Default .doc parser using antiword.
  * Falls back to catdoc if antiword is not installed.
@@ -28,13 +47,21 @@ async function defaultDocParser(filePath) {
   }
 }
 /**
- * Backend parser for formats that cannot be handled client-side.
+ * Backend parser.
  *
- * Frontend handles: DOCX (mammoth.js), PDF (PDF.js), TXT (FileReader)
- * Backend handles:  TXT (fallback), PDF (fallback), DOC (antiword/catdoc)
+ * Frontend handles: DOCX (mammoth.js), TXT (FileReader)
+ * Backend handles:  TXT, PDF (PRASER/Python — always), DOC (antiword/catdoc),
+ *                   DOCX (mammoth, for callers that send no client text)
+ *
+ * PDF is deliberately absent from the frontend list. A PDF stores glyph ids
+ * rather than text, so pdf.js returns Zawgyi/imposter output on exactly the
+ * documents this site exists to handle. Server-side extraction is the only
+ * authoritative route — see _file/pythonPdf.js.
  */
-export function createParser({ saveOriginal, pdfParser, docParser } = {}) {
+export function createParser({ saveOriginal, pdfParser, docParser, docxParser } = {}) {
   const _docParser = docParser || defaultDocParser;
+  const _pdfParser = pdfParser || createPythonPdfParser();
+  const _docxParser = docxParser || defaultDocxParser;
   return async function parseFile(file) {
     const savedPath = await saveOriginal(file);
     const ext = file.originalname.split('.').pop().toLowerCase();
@@ -42,15 +69,11 @@ export function createParser({ saveOriginal, pdfParser, docParser } = {}) {
     if (ext === 'txt') {
       textContent = await fs.readFile(savedPath, 'utf8');
     } else if (ext === 'pdf') {
-      if (!pdfParser) throw new Error('PDF parser not configured');
-      textContent = await pdfParser(savedPath);
+      textContent = await _pdfParser(savedPath);
     } else if (ext === 'doc') {
       textContent = await _docParser(savedPath);
     } else if (ext === 'docx') {
-      throw new Error(
-        'DOCX parsing moved to frontend. Parse it client-side with mammoth.js ' +
-          'and submit the file together with the extracted "text" field to /api/submit.',
-      );
+      textContent = await _docxParser(savedPath);
     } else {
       throw new Error(`Unsupported file type: ${ext}`);
     }

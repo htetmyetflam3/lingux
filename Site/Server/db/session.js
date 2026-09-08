@@ -1,4 +1,4 @@
-import logger from '../../Private/Bridge/logen.js';
+import logger from '../../../Private/Bridge/logen.js';
 import session from 'express-session';
 import MySQLStore from 'express-mysql-session';
 import { pool } from './db.js';

@@ -1,6 +1,6 @@
 {
    "name": "fsmgr-root",
-   "version": "1.3.0",
+   "version": "1.4.0",
    "description": "Root workspace for FSMGR development toolchain",
    "author": "KaungMyatThu",
    "license": "ISC",
