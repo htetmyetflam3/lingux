@@ -1,0 +1,51 @@
+{
+	"name": "FSMGR",
+	"version": "1.2.1",
+	"description": "Myanmar (Burmese) rule-driven text processing and grammar engine. Syllables, single-tone units, are the foundation. POS classification and sentence-level analysis cascading through clauses down to individual words are all built on top of syllables.",
+	"author": "KaungMyatThu",
+	"license": "ISC",
+  "scripts": {
+    "dev": "vite --config Build/vite.config.js",
+    "build": "vite build --config Build/vite.config.js",
+    "preview": "vite preview --config Build/vite.config.js"
+  },
+	"type": "module",
+	"main": "index.js",
+	"keywords": [
+		"myanmar",
+		"burmese",
+		"unicode"
+	],
+	"dependencies": {
+		"javascript-obfuscator": "^5.6.0",	
+		"openssh": "^1.1.0",
+		"axios": "^1.13.2",	
+		"cookie-parser": "^1.4.7",
+		"cors": "^2.8.5",
+		"dotenv": "^17.2.3",
+		"express": "^5.2.1",
+		"express-mysql-session": "^3.0.3",
+		"express-session": "^1.19.0",
+		"fs-extra": "^11.3.3",
+		"helmet": "^8.1.0",
+		"mammoth": "^1.11.0",
+		"morgan": "^1.10.1",
+		"multer": "^2.0.2",
+		"mysql2": "^3.16.1",
+		"fontkit": "^2.0.4",
+    "docx": "^9.7.1",
+    "pdf-lib": "^1.17.1",
+  	 "pdf-parse": "^2.4.5",
+		"pdfkit": "^0.20.2",
+    "rimraf": "^6.1.2",
+		"tapable": "^2.3.3"
+},
+    "devDependencies": {
+  	"pdfjs-dist": "^6.2.108",
+  	"vite": "^6.0.0",
+  	"bootstrap": "^5.3.8",
+  	"bootstrap-icons": "^1.13.1",
+  	"animejs": "^4.2.2",
+  	"sass-embedded": "^1.100.0"
+  }
+}

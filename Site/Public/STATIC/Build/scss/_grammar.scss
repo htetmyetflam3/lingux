@@ -1,0 +1,204 @@
+// ═══════════════════════════════════════════════════════════════════════
+// Myanmar Grammar Engine — Bootstrap-Style Map Architecture
+// Light Mode = LSE | Dark Mode = LSN
+// ═══════════════════════════════════════════════════════════════════════
+
+// ───────────────────────────────────────────────────────────────────────
+// 1. COLOR-MODE SUPPORT (Bootstrap 5.3 style)
+// ───────────────────────────────────────────────────────────────────────
+
+$color-mode-type: data !default; // data | media-query
+
+@mixin color-mode($mode: light, $root: false) {
+	@if $color-mode-type == "media-query" {
+		@if $mode == "dark" {
+			@media (prefers-color-scheme: dark) {
+				@content;
+			}
+		} @else if $mode == "light" {
+			@media (prefers-color-scheme: light) {
+				@content;
+			}
+		}
+	} @else {
+		@if $root {
+			[data-grammar-style="#{$mode}"] {
+				@content;
+			}
+		} @else {
+			@if $mode == "light" {
+				[data-grammar-style="light"] & {
+					@content;
+				}
+			} @else if $mode == "dark" {
+				[data-grammar-style="dark"] & {
+					@content;
+				}
+			}
+		}
+	}
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// 2. RAW PARTICLE PALETTES (like $blue-100..900 in Bootstrap)
+// ───────────────────────────────────────────────────────────────────────
+
+$wibat-palette: (
+	100: null,
+	200: "ကို",
+	300: "မှ",
+	400: "ထိ",
+	500: "အထိ",
+	600: "ထိအောင်",
+	700: "ကြောင့်",
+	800: "အား",
+	900: "အရ",
+) !default;
+
+$thanbanda-palette: (
+	100: "လည်းကောင်း",
+	200: "ရော",
+	300: "သလို",
+	400: "ထက်",
+	500: "လည်း",
+	600: "ဖြစ်စေ",
+	700: "သောကြောင့်",
+	800: "သဖြင့်",
+	900: "လျှင်",
+) !default;
+
+$pyitsi-palette: (
+	100: "ကောင်",
+	200: "ခု",
+	300: "သား",
+	400: "ထီး",
+	500: "တို့",
+	600: "သာ",
+	700: "ကဲ့သို့",
+	800: "အို",
+	900: "နည်း",
+) !default;
+
+// ───────────────────────────────────────────────────────────────────────
+// 3. THEME COLOR MAP (Bootstrap-style — ONLY 3 colors, no extras)
+// ───────────────────────────────────────────────────────────────────────
+
+$primary: $wibat-palette !default; // was $blue
+$secondary: $thanbanda-palette !default; // was $gray
+$danger: $pyitsi-palette !default; // was $red
+
+// Intentionally OMITTED: $success, $info, $warning, $light, $dark
+// You only want 3 grammar categories mapped to theme colors
+
+// ───────────────────────────────────────────────────────────────────────
+// 4. THEME COLORS MAP (Bootstrap's $theme-colors, trimmed to 3)
+// ───────────────────────────────────────────────────────────────────────
+
+$theme-grammar: (
+	"primary": $primary,
+	"secondary": $secondary,
+	"danger": $danger,
+) !default;
+
+// ───────────────────────────────────────────────────────────────────────
+// 5. ACCESSOR FUNCTIONS (like Bootstrap's color utilities)
+// ───────────────────────────────────────────────────────────────────────
+
+@function grammar-shade($theme, $weight: 500) {
+	$map: map-get($theme-grammar, $theme);
+	@if $map == null {
+		@error "Theme `#{$theme}` not found in $theme-grammar. Available: #{map-keys($theme-grammar)}";
+	}
+	$val: map-get($map, $weight);
+	@if $val == null {
+		@error "Weight `#{$weight}` not found in theme `#{$theme}`. Available: #{map-keys($map)}";
+	}
+	@return $val;
+}
+
+@function grammar-particle($category, $shade: 500) {
+	@return grammar-shade($category, $shade);
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// 6. LIGHT MODE (LSE) — DEFAULT
+// ───────────────────────────────────────────────────────────────────────
+
+$style: "LSE" !default;
+
+// ───────────────────────────────────────────────────────────────────────
+// 7. DARK MODE (LSN) OVERRIDES — only what differs
+// ───────────────────────────────────────────────────────────────────────
+
+$pyitsi-lsn-override: (
+	900: "လား", // LSE: "နည်း" → LSN: "လား"
+) !default;
+
+$wibat-lsn-override: (
+	// identical — no override
+	) !default;
+
+$thanbanda-lsn-override: (// identical — no override
+	) !default;
+
+// ───────────────────────────────────────────────────────────────────────
+// 8. RESOLVED PALETTES (style-aware)
+// ───────────────────────────────────────────────────────────────────────
+
+$pyitsi-resolved: if(
+	$style == "LSN",
+	map-merge($pyitsi-palette, $pyitsi-lsn-override),
+	$pyitsi-palette
+) !default;
+
+$wibat-resolved: if(
+	$style == "LSN",
+	map-merge($wibat-palette, $wibat-lsn-override),
+	$wibat-palette
+) !default;
+
+$thanbanda-resolved: if(
+	$style == "LSN",
+	map-merge($thanbanda-palette, $thanbanda-lsn-override),
+	$thanbanda-palette
+) !default;
+
+// ───────────────────────────────────────────────────────────────────────
+// 9. RESOLVED THEME MAP (rebuild with resolved palettes)
+// ───────────────────────────────────────────────────────────────────────
+
+$primary-resolved: $wibat-resolved !default;
+$secondary-resolved: $thanbanda-resolved !default;
+$danger-resolved: $pyitsi-resolved !default;
+
+$theme-grammar-resolved: (
+	"primary": $primary-resolved,
+	"secondary": $secondary-resolved,
+	"danger": $danger-resolved,
+) !default;
+
+// ───────────────────────────────────────────────────────────────────────
+// 10. DARK MODE CSS OUTPUT (Bootstrap-style [data-grammar-style="dark"])
+// ───────────────────────────────────────────────────────────────────────
+
+@include color-mode(dark, true) {
+	// When data-grammar-style="dark" is on <html> or <body>
+	// LSN overrides apply
+	--grammar-primary-900: #{map-get($pyitsi-lsn-override, 900)};
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// USAGE EXAMPLES
+// ═══════════════════════════════════════════════════════════════════════
+
+// SCSS:
+//   .sentence {
+//     particle: grammar-particle("primary", 500);   // → "အထိ" (LSE)
+//   }
+//
+// HTML:
+//   <html data-grammar-style="dark">   // switches to LSN
+//   <html data-grammar-style="light">  // switches to LSE (default)
+//
+// JS toggle:
+//   document.documentElement.setAttribute('data-grammar-style', 'dark');
