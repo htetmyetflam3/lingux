@@ -136,9 +136,12 @@ Watch out: two `paths.js` (Site and Engine), two HTML pages, two deployments.
 
 ## 7. Testing realities
 
-**The production MySQL is unreachable from dev boxes** — `srv1415.hstgr.io`
-whitelists IPs. Without `DEV_BYPASS_QUOTA=true` every request dies at the first
-DB call. Environmental, not a bug.
+**The production MySQL is unreachable from sandboxed dev environments.** The
+credentials and the server are fine — they connect from a normal machine. A
+proxy inside the sandbox accepts every TCP socket (even to closed ports and
+unroutable addresses) but relays only HTTP, so the MySQL handshake dies as
+`PROTOCOL_CONNECTION_LOST`. Without `DEV_BYPASS_QUOTA=true` every request dies
+at the first DB call. Environmental, not a bug — and not a server-side block.
 
 - HTTP tests need the dev bypasses on.
 - DB code must be tested with a **fake pool** — also the only way to assert
