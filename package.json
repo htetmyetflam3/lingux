@@ -1,6 +1,6 @@
 {
    "name": "fsmgr-root",
-   "version": "1.8.0",
+   "version": "2.1.0",
    "description": "Root workspace for Lingux development toolchain",
    "author": "KaungMyatThu",
    "license": "ISC",

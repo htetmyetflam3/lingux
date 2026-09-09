@@ -10,7 +10,39 @@ text positioning).
 
 import re
 import unicodedata
+import os
 import zlib
+
+# ── decompression-bomb guard ─────────────────────────────────
+# The praser is the ONLY component that opens containers, so it is the
+# one that carries the cap: a tiny compressed stream must never be able
+# to expand into gigabytes inside this process. Env-tunable.
+MAX_STREAM_MB = int(os.environ.get("PRASER_MAX_STREAM_MB", "256"))
+
+
+def zlib_decompress_capped(b, limit_mb=None):
+    """zlib.decompress with a hard output cap — bomb-safe."""
+    limit = (MAX_STREAM_MB if limit_mb is None else limit_mb) * 1024 * 1024
+    out = bytearray()
+    dobj = zlib.decompressobj()
+    data = b
+    while data:
+        out += dobj.decompress(data, 1 << 20)
+        if len(out) > limit:
+            raise ValueError(
+                f"decompressed stream exceeds {MAX_STREAM_MB} MB cap "
+                "(decompression bomb?)"
+            )
+        data = dobj.unconsumed_tail
+        if dobj.eof:
+            break
+    out += dobj.flush()
+    if len(out) > limit:
+        raise ValueError(
+            f"decompressed stream exceeds {MAX_STREAM_MB} MB cap "
+            "(decompression bomb?)"
+        )
+    return bytes(out)
 import struct
 
 
@@ -43,7 +75,9 @@ def get_stream(objects, num, gen=0):
     b = d[j:k]
     if b'/FlateDecode' in d[:i]:
         try:
-            return zlib.decompress(b)
+            return zlib_decompress_capped(b)
+        except ValueError:
+            raise  # bomb guard: refuse the document loudly, never silently
         except Exception:
             return None
     return b

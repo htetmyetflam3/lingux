@@ -140,6 +140,7 @@ const request = createRequest({ pool });
 // ── Multer upload ───────────────────────────────────────────────────────
 // Uploads go straight into the PRASER python project, sorted by file type:
 // .txt → upload/input/txt, .pdf → upload/input/pdf, .doc/.docx → upload/input/docx
+const UPLOAD_MAX_MB = Number.parseInt(process.env.UPLOAD_MAX_MB || '64', 10);
 const upload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, inputDirFor(file.originalname)),
@@ -149,6 +150,9 @@ const upload = multer({
         `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`,
       ),
   }),
+  // the Site only SHUTTLES bytes to the praser — it never opens them, but
+  // the door still has a size: bombs die before the quarantine write
+  limits: { fileSize: UPLOAD_MAX_MB * 1024 * 1024 },
 });
 
 // ── Route wiring ────────────────────────────────────────────────────────

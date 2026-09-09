@@ -72,7 +72,14 @@ def create_app():
     from flask import Flask, request, jsonify, send_file
 
     app = Flask(__name__)
+    # door-size cap: bombs and junk die here, before any parsing
+    MAX_UPLOAD_MB = int(os.environ.get("PRASER_MAX_UPLOAD_MB", "64"))
+    app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
     detector = load_detector()
+
+    @app.errorhandler(413)
+    def _upload_too_large(_e):
+        return jsonify({"error": f"upload too large (max {MAX_UPLOAD_MB} MB)"}), 413
 
     def _store_job(job):
         jid = uuid.uuid4().hex

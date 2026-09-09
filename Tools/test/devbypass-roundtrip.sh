@@ -209,5 +209,25 @@ for i in 1 2 3 4 5 6; do curl -s -o /dev/null http://127.0.0.1:9005/health && br
 check "engine /fsm: caller ip not allow-listed -> 403" 403 "$(code -X POST http://127.0.0.1:9005/fsm -H 'Content-Type: application/json' -H "X-API-Key: $KEYV" -d '{}')"
 kill "$EPID" 2>/dev/null
 
+echo "== 10) zip-bomb guard: the praser refuses decompression bombs =="
+BOMB="$ROOT/Site/Public/PRASER/Python/.output/bomb.docx"
+python3 - "$BOMB" <<'PYBOMB'
+import sys, zipfile
+# ~512 MB of zeros in a ~500 KB docx — built in constant memory
+with zipfile.ZipFile(sys.argv[1], "w", zipfile.ZIP_DEFLATED) as z:
+    with z.open("word/document.xml", "w") as f:
+        chunk = b"\x00" * (1 << 20)
+        for _ in range(512):
+            f.write(chunk)
+PYBOMB
+code=$(curl -s -o /tmp/rt_bomb.json -w '%{http_code}' -X POST http://127.0.0.1:5005/api/preview -F "file=@$BOMB;filename=bomb.docx")
+if [ "$code" = "400" ] && grep -qi "bomb\|cap" /tmp/rt_bomb.json; then
+  check "praser refuses zip-bomb docx (512MB bomb)" 400 "$code"
+else
+  check "praser refuses zip-bomb docx (512MB bomb)" 400 "got $code: $(head -c 120 /tmp/rt_bomb.json)"
+fi
+check "praser still healthy after bomb" 200 "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5005/health)"
+rm -f "$BOMB"
+
 [ "$fail" = 0 ] && echo "ALL PASS" || echo "SOME FAILURES"
 exit "$fail"

@@ -17,6 +17,14 @@ uses [Semantic Versioning](https://semver.org/).
 *Note* : **"previous changelog arent registerd here .so start registering fron 1.4.0"**
 
 
+## [2.1.0] - 2026-09-09
+### Added
+- Zip/decompression-bomb guards — the praser is the ONLY binary-opening component, so it carries the armor (owner rationale: separate dirs, port-to-port, keep bombs away from Site and engine):
+  - PDF: FlateDecode streams decompress under a hard cap (`PRASER_MAX_STREAM_MB`, 256) — a cap hit REFUSES the document loudly instead of returning empty text.
+  - DOCX: `word/document.xml` is refused when the member exceeds `PRASER_MAX_MEMBER_MB` (256) or compresses beyond a 200x ratio (real documents are ~10-30x; bombs are 1000x).
+  - Praser door: `PRASER_MAX_UPLOAD_MB` (64) via Flask MAX_CONTENT_LENGTH, JSON 413.
+  - Site door: multer `fileSize` cap (`UPLOAD_MAX_MB`, 64) — the Site only shuttles bytes, but its door has a size too.
+- Test section 10: a real 512 MB-of-zeros docx (~500 KB on disk) is refused 400 with a bomb message; the praser stays healthy afterwards.
 ## [2.0.0] - 2026-09-09
 ### Added
 - The owner's two-web topology, engine-initiated: frontend + PDF praser live on one web (port-to-port), the engine is isolated; hidden→engine and engine→praser cross webs (https in prod).

@@ -78,6 +78,12 @@ stubbed or unwired; the contracts below are what to trust. Read before grepping.
   misaligns any validator (filename, userId, sessionId, textSha256,
   textBytes) is rejected 403 and the record is burned — one pre-receive
   authorises at most one push. The Python PRASER never calls the engine.
+- Bomb armor (v2.1.0): the praser is the only component that opens
+  containers, so it carries the caps — PDF FlateDecode streams capped
+  (PRASER_MAX_STREAM_MB), docx members capped by size AND compression
+  ratio (PRASER_MAX_MEMBER_MB, 200x), upload door caps at both the
+  praser (PRASER_MAX_UPLOAD_MB) and the Site (UPLOAD_MAX_MB). A cap hit
+  refuses the document (400) — never a silent empty text.
 - Two-web topology (owner design, v2.0.0): frontend + PDF praser on one
   web (port-to-port), engine isolated. The ENGINE initiates every
   cross-web connection: keyed /fsm delivery triggers an outbound

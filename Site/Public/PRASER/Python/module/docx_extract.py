@@ -10,7 +10,13 @@ Only ``word/document.xml`` is read — body paragraphs in document order,
 including paragraphs inside tables. Headers/footers/footnotes are ignored.
 """
 
+import os
 import zipfile
+
+# Same bomb guard as the PDF side: a docx is a zip container, and one
+# member ("42.zip" style) must never be allowed to explode in memory.
+MAX_MEMBER_MB = int(os.environ.get("PRASER_MAX_MEMBER_MB", "256"))
+MAX_MEMBER_RATIO = 200  # real document.xml compresses ~10-30x; bombs do 1000x
 import xml.etree.ElementTree as ET
 
 # wordprocessingml namespace: every content tag in document.xml is namespaced.
@@ -27,6 +33,19 @@ def extract_docx_paragraphs(docx_path):
     they carry the document's spacing.
     """
     with zipfile.ZipFile(docx_path) as z:
+        info = z.getinfo(DOCUMENT_XML)
+        ratio = info.file_size / max(info.compress_size, 1)
+        if info.file_size > MAX_MEMBER_MB * 1024 * 1024:
+            raise ValueError(
+                f"docx member {DOCUMENT_XML!r} exceeds the "
+                f"{MAX_MEMBER_MB} MB cap (decompression bomb?)"
+            )
+        if ratio > MAX_MEMBER_RATIO:
+            raise ValueError(
+                f"docx member {DOCUMENT_XML!r} compresses "
+                f"{info.compress_size} -> {info.file_size} bytes "
+                f"(ratio {ratio:.0f}x) — decompression bomb, refused"
+            )
         xml_bytes = z.read(DOCUMENT_XML)
     root = ET.fromstring(xml_bytes)
 
