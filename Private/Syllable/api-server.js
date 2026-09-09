@@ -208,7 +208,7 @@ const COLLECTED = new Map();
 /* The PDF praser service (same web as the frontend, different port in
    dev; https cross-web in prod). The ENGINE initiates every connection. */
 const PRASER_ENDPOINT = (
-	process.env.PRASER_ENDPOINT || "http://127.0.0.1:5005"
+	process.env.PRASER_ENDPOINT || "http://127.0.0.1:5055"
 ).replace(/\/$/, "");
 const COLLECT_TIMEOUT_MS = parseInt(
 	process.env.ENGINE_COLLECT_TIMEOUT_MS || String(120 * 1000),
@@ -561,7 +561,7 @@ http
 	})
 	.listen(PORT, "0.0.0.0", () => {
 		console.log(`[api-server] listening on http://0.0.0.0:${PORT}`);
-		console.log(`[api-server] POST /process  (JSON: text + flags → positions)`);
+		console.log("[api-server] routes: POST /fsm (keyed) - GET /result/:hash (keyed) - POST /process (keyed, srcPath only) - GET /health (open)");
 		if (API_KEY) {
 			console.log(
 				`[api-server] handshake gate ON — key ${API_KEY.slice(0, 6)}…(${API_KEY.length} chars) from ${

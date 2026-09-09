@@ -53,7 +53,7 @@ const ENTRY = path.join('module', 'prase.py');
 
 /** The PRASER service (same web as the frontend — port-to-port in dev). */
 export const PRASER_ENDPOINT = (
-  process.env.PRASER_ENDPOINT || 'http://127.0.0.1:5005'
+  process.env.PRASER_ENDPOINT || 'http://127.0.0.1:5055'
 ).replace(/\/$/, '');
 
 const DEFAULTS = {

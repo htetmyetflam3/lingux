@@ -75,6 +75,30 @@ def create_app():
     # door-size cap: bombs and junk die here, before any parsing
     MAX_UPLOAD_MB = int(os.environ.get("PRASER_MAX_UPLOAD_MB", "64"))
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
+
+    # ── machine-boundary lock ────────────────────────────────────
+    # This service is UNAUTHENTICATED by design: it trusts its own web.
+    # "Its own web" means its own MACHINE — a caller whose source address
+    # is not loopback (a port-forward, a proxy, a stray container) must
+    # carry X-Praser-Key matching PRASER_KEY. With no key configured,
+    # non-loopback callers are refused entirely (fail closed). The site
+    # and the engine both dial 127.0.0.1, so the normal flow never sees
+    # this — it exists so an exposed port forward serves nothing.
+    PRASER_KEY = os.environ.get("PRASER_KEY", "")
+    LOOPBACK = {"127.0.0.1", "::1"}
+
+    @app.before_request
+    def _machine_boundary():
+        if request.remote_addr in LOOPBACK:
+            return None
+        if not PRASER_KEY:
+            app.logger.warning("refused non-loopback call with no PRASER_KEY set")
+            return jsonify({"error": "refused: this service only serves "
+                                     "its own machine"}), 403
+        if request.headers.get("X-Praser-Key") != PRASER_KEY:
+            return jsonify({"error": "refused: bad X-Praser-Key"}), 403
+        return None
+
     detector = load_detector()
 
     @app.errorhandler(413)

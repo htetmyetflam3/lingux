@@ -17,6 +17,15 @@ uses [Semantic Versioning](https://semver.org/).
 *Note* : **"previous changelog arent registerd here .so start registering fron 1.4.0"**
 
 
+## [2.2.0] - 2026-09-09
+### Added
+- Praser machine-boundary lock: the service is unauthenticated BY DESIGN for its own machine — but a caller arriving from a NON-loopback source address (port forward, preview proxy, stray container) must now carry `X-Praser-Key` matching the `.env` `PRASER_KEY`, and with no key configured non-loopback callers are refused entirely (fail closed). Found live: this sandbox's preview proxy forwards even loopback-bound ports — with the lock, that path serves nothing (403).
+### Changed
+- Praser binds `127.0.0.1` BY DEFAULT (`--host` is now an explicit operator decision); docs say so.
+- PRASER default port retired from 5005 (was briefly exposed) -> 5055 everywhere (pythonPdf.js, api-server.js default `PRASER_ENDPOINT`, test suite).
+- Engine boot banner now lists the real routes (/fsm, /result/:hash, /process, /health) instead of a stale /process hint.
+### Docs
+- PROJECTSTRUCTURE Corrections gained a READER'S LENS row: the append-only log records the whole journey — rows about /metadata declares, body-text pushes, /fsm raw pulls are historical (v1.7.0-v1.9.0); the current contract is /fsm delivery -> engine-initiated collect -> /result poll.
 ## [2.1.0] - 2026-09-09
 ### Added
 - Zip/decompression-bomb guards — the praser is the ONLY binary-opening component, so it carries the armor (owner rationale: separate dirs, port-to-port, keep bombs away from Site and engine):

@@ -94,7 +94,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 const ENGINE = 'http://127.0.0.1:9000';
-const PRASER = 'http://127.0.0.1:5005';
+const PRASER = process.env.PRASER_ENDPOINT || 'http://127.0.0.1:5055';
 const KEY = process.env.KEY;        // FSM_KEY — hidden-side routes only
 const DOCX = process.env.DOCX;      // small raw-Zawgyi fixture
 const checks = [];
@@ -220,14 +220,18 @@ with zipfile.ZipFile(sys.argv[1], "w", zipfile.ZIP_DEFLATED) as z:
         for _ in range(512):
             f.write(chunk)
 PYBOMB
-code=$(curl -s -o /tmp/rt_bomb.json -w '%{http_code}' -X POST http://127.0.0.1:5005/api/preview -F "file=@$BOMB;filename=bomb.docx")
+code=$(curl -s -o /tmp/rt_bomb.json -w '%{http_code}' -X POST "${PRASER_ENDPOINT:-http://127.0.0.1:5055}/api/preview" -F "file=@$BOMB;filename=bomb.docx")
 if [ "$code" = "400" ] && grep -qi "bomb\|cap" /tmp/rt_bomb.json; then
   check "praser refuses zip-bomb docx (512MB bomb)" 400 "$code"
 else
   check "praser refuses zip-bomb docx (512MB bomb)" 400 "got $code: $(head -c 120 /tmp/rt_bomb.json)"
 fi
-check "praser still healthy after bomb" 200 "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5005/health)"
+check "praser still healthy after bomb" 200 "$(curl -s -o /dev/null -w '%{http_code}' ${PRASER_ENDPOINT:-http://127.0.0.1:5055}/health)"
 rm -f "$BOMB"
+
+PRASER_KEYV="$(grep '^PRASER_KEY=' "$ROOT/.env" | cut -d= -f2)"
+check "praser machine-boundary: non-machine source refused" 403 "$(curl -s --interface 169.254.0.21 -o /dev/null -w '%{http_code}' http://127.0.0.1:5055/health)"
+check "praser machine-boundary: key holder accepted" 200 "$(curl -s --interface 169.254.0.21 -H "X-Praser-Key: $PRASER_KEYV" -o /dev/null -w '%{http_code}' http://127.0.0.1:5055/health)"
 
 [ "$fail" = 0 ] && echo "ALL PASS" || echo "SOME FAILURES"
 exit "$fail"

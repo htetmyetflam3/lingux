@@ -78,6 +78,15 @@ stubbed or unwired; the contracts below are what to trust. Read before grepping.
   misaligns any validator (filename, userId, sessionId, textSha256,
   textBytes) is rejected 403 and the record is burned — one pre-receive
   authorises at most one push. The Python PRASER never calls the engine.
+- READER'S LENS on the rows below: this Corrections log is append-only,
+  so it records the whole journey. Rows describing engine `POST
+  /metadata` declares, body-text pushes, /fsm raw pulls or the hidden
+  raw-endpoint fileUrl are HISTORICAL iterations (v1.7.0-v1.9.0). The
+  CURRENT contract (v2.0.0+) is ONLY: keyed hidden delivery (`POST
+  /fsm`) -> engine-initiated collect from the praser
+  (`/api/engine/collect`, uploader bound via `/api/engine/bind`) ->
+  keyed `GET /result/:hash` poll -> invokeWithHash read-back. There is
+  no engine /metadata route anymore.
 - Bomb armor (v2.1.0): the praser is the only component that opens
   containers, so it carries the caps — PDF FlateDecode streams capped
   (PRASER_MAX_STREAM_MB), docx members capped by size AND compression
