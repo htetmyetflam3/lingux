@@ -1,22 +1,23 @@
-.# Changelog
-
-All notable changes to this project will be documented here. !Do not write minor changes and  changes that  doesnt effect original behaviour.
-Format follows [Keep a Changelog](https://keepachangelog.com/); this project
-uses [Semantic Versioning](https://semver.org/).
-
-
-## Version  1.4.0
-
-
-
-
 
 
 ---
 
 *Note* : **"previous changelog arent registerd here .so start registering fron 1.4.0"**
+*Note* : **"previous changelog arent registerd here .so start registering fron 1.4.0"**
 
 
+## [2.3.1] - 2026-09-09
+### Added (defense-in-depth BEHIND the session boundary — validator + flood dam)
+- Context (owner's model, exact): curl never exists in production. The boundary is the SESSION ID — only the frontend flow mints one (cookie chain), so curl without a session id is dead regardless of its JSON; production curl additionally dies at headerCheck's bot-UA regex. The DB ownership check materializes at the SAVE-TO-DISK stage (rawSaver writes, finalizeUpload lands the submissions row) as the last backstop. Even DEV_BYPASS_SESSION=true lets curl through ONLY because that flag deliberately opens BOTH headerCheck and the session gates in dev — and it is inert under NODE_ENV=production (fail closed). The flags exist for agents that cannot use the interactive UI. Nothing below adds or opens any curl door: the validator + dam are defense-in-depth BEHIND the session boundary (a spoofed-UA script or an abusive logged-in session), which the curl experiment merely demonstrated.
+- `validatePublicText` (Server/gateway/text/validate.js): single pass, O(n), constant memory, NO regex on user input (no ReDoS). Zero control chars (NUL/\x01/ESC are smuggled binary, not prose), ≤16 U+FFFD (broken/double-encoded payloads), ≤64 invisible/format chars (zero-widths, BOM, bidi overrides — evasion carriers), 2M-char cap. REJECT, never rewrite (same rule as PRASER_CLEANUP=no). Burmese prose passes untouched.
+- Flood dam: per-IP fixed window on /api/* (`RATE_LIMIT_MAX`/min, default 120, 429 + Retry-After) — the attack test showed 20 unauthenticated posts accepted in 200ms with 26 MB of disk written and no dam at all.
+- Text JSON body cap 10mb -> 1mb (`TEXT_BODY_LIMIT`) — a text submission is not a file.
+- Attack-test results (same curls, before -> after): control soup 202 -> 400; 5000x U+FFFD 202 -> 400; 3000x zero-width 202 -> 400; flood all-202 -> 202x18 then 429; legit Burmese text 202 -> 202 (no false positive). Suite ALL PASS twice.
+## [2.3.0] - 2026-09-09
+### Added (Cloudflare-readiness, next-layer prep)
+- `Cache-Control: private, no-store` on the keyed raw-text endpoint (GET /api/hidden/raw/:submitId) — an edge cache must never hold submission text.
+- `TRUST_PROXY` env on the Site: behind Cloudflare/reverse proxy it restores the real client IP + proto (req.ip, req.protocol, secure cookies). Unset = direct, unchanged.
+- Note: the cookie chain was ALREADY Cloudflare-aware — cgen fingerprints `cf-connecting-ip` + `cf-ipcountry` (default MM) into deviceFingerprint.
 ## [2.2.0] - 2026-09-09
 ### Added
 - Praser machine-boundary lock: the service is unauthenticated BY DESIGN for its own machine — but a caller arriving from a NON-loopback source address (port forward, preview proxy, stray container) must now carry `X-Praser-Key` matching the `.env` `PRASER_KEY`, and with no key configured non-loopback callers are refused entirely (fail closed). Found live: this sandbox's preview proxy forwards even loopback-bound ports — with the lock, that path serves nothing (403).
