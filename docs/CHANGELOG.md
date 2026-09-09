@@ -17,6 +17,16 @@ uses [Semantic Versioning](https://semver.org/).
 *Note* : **"previous changelog arent registerd here .so start registering fron 1.4.0"**
 
 
+## [1.9.0] - 2026-09-09
+### Added
+- Engine `POST /fsm` — the endpoint hidden.js has been pointed at all along (FSM_ENDPOINT=http://localhost:9000/fsm). It is the ONLY record creator for the metadata cache and the ONLY keyed route: X-API-Key (root .env FSM_KEY/ENGINE_KEY) + caller-IP allowlist + origin allowlist, fail closed. Payload = hidden.js's exact shape (fileName, fileUrl, status, submitId, userId, sessionId, formId …); accepts a batch via `records`.
+- Raw pull: /fsm with a fileUrl and no sha makes the ENGINE pull the raw txt from hidden's raw endpoint (same key) and compute the expected sha256/bytes from the authoritative file. /process also accepts an empty-text pull signal against a delivered fileUrl.
+- Metadata cache holds ≥20 records (500 cap, TTL-bounded) delivered by hidden, exactly as designed.
+### Changed
+- `/metadata` and `/process` are now deliberately UNKEYED (the praser side has no key): calls are accepted blindly and the METADATA is the key — it is cross-checked against the hidden-delivered record. Misaligned or unknown → 403 and the record is BURNED (poisoned declares kill the record; one delivery authorises at most one push). The Site bridge performs the full dance: keyed /fsm delivery → blind declare → push.
+### Notes
+- hidden.js needed ZERO code changes — its existing payload to FSM_ENDPOINT is the /fsm contract.
+- readFromApi.js is the engine's file-byte reader (FSM stream, \n-boundary yields) — used for every staged/pulled input; engine still never writes pdf/docx.
 ## [1.8.0] - 2026-09-09
 ### Added
 - Engine handshake gate, fail closed: /metadata + /process require X-API-Key matching the root .env key (FSM_KEY / ENGINE_KEY, timing-safe compare), a caller IP on the allowlist, and — when the caller sends Origin/Referer — a host on the origin allowlist. An engine with NO key configured refuses everything. /health stays open (liveness).

@@ -110,6 +110,9 @@ export function createIncomingRouter({ upload, pool, request }) {
               sessionId: req.visitorHash,
               source,
               originalName: req.file.originalname,
+              // hidden's raw endpoint — lets the engine pull the txt itself
+              // (pull mode) exactly as hidden.js hands it a fileUrl in prod
+              fileUrl: `${req.protocol}://${req.get('host')}/api/hidden/raw/${result.submitId}`,
             },
           });
           const ext = req.file.originalname.split('.').pop().toLowerCase();

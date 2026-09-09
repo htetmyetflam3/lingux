@@ -78,6 +78,15 @@ stubbed or unwired; the contracts below are what to trust. Read before grepping.
   misaligns any validator (filename, userId, sessionId, textSha256,
   textBytes) is rejected 403 and the record is burned — one pre-receive
   authorises at most one push. The Python PRASER never calls the engine.
+- Endpoint split (owner design): the KEY guards hidden.js → engine
+  (`POST /fsm` — the ONLY record creator; payload = hidden.js's exact
+  shape, FSM_ENDPOINT already pointed there). The praser side
+  (`/metadata`, `/process`) is UNKEYED by design — accepted blindly and
+  validated by CROSS-CHECKING its declared metadata against the cache
+  hidden delivered (≥20 records, TTL). Misaligned → 403 + record
+  burned. Pull mode: /fsm with fileUrl (no sha) makes the engine pull
+  the raw txt from hidden's raw endpoint and compute the expected
+  sha/bytes itself; /process accepts an empty-text pull signal.
 - The engine handshake is gated too (key + IP + origin, fail closed):
   X-API-Key must match the root .env FSM_KEY/ENGINE_KEY, the caller IP must
   be allow-listed (explicit ENGINE_ALLOWED_IPS wins verbatim; default =
