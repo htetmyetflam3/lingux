@@ -13,7 +13,8 @@ stubbed or unwired; the contracts below are what to trust. Read before grepping 
 
 ## Corrections — wrong assumptions agents make
 `````
-## *Append the content by only writing below this line*
+*Append the content by only writing 
+below this line*
 ````````
 
 
