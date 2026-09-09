@@ -17,6 +17,14 @@ uses [Semantic Versioning](https://semver.org/).
 *Note* : **"previous changelog arent registerd here .so start registering fron 1.4.0"**
 
 
+## [1.8.0] - 2026-09-09
+### Added
+- Engine handshake gate, fail closed: /metadata + /process require X-API-Key matching the root .env key (FSM_KEY / ENGINE_KEY, timing-safe compare), a caller IP on the allowlist, and — when the caller sends Origin/Referer — a host on the origin allowlist. An engine with NO key configured refuses everything. /health stays open (liveness).
+- Allowlists: `ENGINE_ALLOWED_IPS` (explicit wins verbatim, even excluding loopback) and `ENGINE_ALLOWED_ORIGINS`. Dev placeholders in .env: origins `localhost:3000` etc.; IPs fall back to every `DEV_BYPASS_IP` entry + loopback. Boot banner prints key fingerprint + lists (never the key).
+### Fixed
+- IP allowlist no longer force-concats loopback when the operator sets an explicit ENGINE_ALLOWED_IPS — explicit config wins.
+### Notes
+- On the engine's read path: readFromApi's FSM stream (256 KB chunks) yields at \n boundaries by design — it never splits Burmese text mid-line; that reader was correct all along. The chunk-boundary corruption fixed in 1.7.0 was in the HTTP JSON body reader only; the sha/byte validators guard that path.
 ## [1.7.0] - 2026-09-09
 ### Added
 - Engine pre-receive gate (`POST /metadata` on the engine api-server): the Site registers the submission's validators BEFORE any text crosses — the FRONTEND-created filename (`{submitId}{ext}`), userId and session-cookie identity (validators, not optional), formId, expected text sha256 + byte length. Body-text pushes must align with the record or are rejected (403) and the record is burned: one record authorises at most one push (replay dies).

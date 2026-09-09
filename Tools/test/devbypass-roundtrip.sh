@@ -89,7 +89,7 @@ EOF
 [ $? -ne 0 ] && fail=1
 
 echo "== 8) pre-receive validator: misaligned pushes must be REJECTED =="
-node - <<'EOF'
+KEY="$KEY" node - <<'EOF'
 import crypto from 'crypto';
 const EP = process.env.ENGINE_ENDPOINT || 'http://localhost:9000';
 const TEXT = 'မင်္ဂလာပါ ကမ္ဘာ။ နေကောင်းလား';
@@ -107,14 +107,15 @@ const meta = {
   textSha256: sha,
   textBytes: bytes,
 };
+const KEY = process.env.KEY; // FSM_KEY from .env — handshake requires it
 async function pre(over = {}) {
   return fetch(`${EP}/metadata`, { method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-API-Key': KEY },
     body: JSON.stringify({ ...meta, ...over }) });
 }
 async function push(over = {}) {
   return fetch(`${EP}/process`, { method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-API-Key': KEY },
     body: JSON.stringify({
       text: TEXT, hash: submitId, filename: meta.filename,
       userId: meta.userId, sessionId: meta.sessionId, ...over }) });
@@ -164,6 +165,35 @@ check('honest push after rejects still accepted', r.status === 200);
 process.exit(bad);
 EOF
 [ $? -ne 0 ] && fail=1
+
+echo "== 9) engine handshake gate (key + ip + origin) =="
+KEYV="$(grep '^FSM_KEY=' "$ROOT/.env" | cut -d= -f2)"
+code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+
+# /health stays open (liveness, no key)
+check "engine /health open (no key)" 200 "$(code http://127.0.0.1:9000/health)"
+
+# no key -> 403
+check "engine: no key -> 403" 403 "$(code -X POST http://127.0.0.1:9000/metadata -H 'Content-Type: application/json' -d '{}')"
+
+# wrong key -> 403
+check "engine: wrong key -> 403" 403 "$(code -X POST http://127.0.0.1:9000/metadata -H 'Content-Type: application/json' -H 'X-API-Key: wrong-key' -d '{}')"
+
+# right key, evil origin -> 403
+check "engine: foreign origin -> 403" 403 "$(code -X POST http://127.0.0.1:9000/metadata -H 'Content-Type: application/json' -H "X-API-Key: $KEYV" -H 'Origin: https://evil.example' -d '{}')"
+
+# right key, allowed origin (localhost:3000) -> GATE PASSES (400 = body validation, not 403)
+check "engine: localhost:3000 origin passes gate" 400 "$(code -X POST http://127.0.0.1:9000/metadata -H 'Content-Type: application/json' -H "X-API-Key: $KEYV" -H 'Origin: http://localhost:3000' -d '{}')"
+
+# right key, no origin header (server-to-server) -> key+ip gate it -> 400 (accepted gate, malformed body)
+check "engine: no origin (s2s) passes gate -> 400 on empty body" 400 "$(code -X POST http://127.0.0.1:9000/metadata -H 'Content-Type: application/json' -H "X-API-Key: $KEYV" -d '{}')"
+
+# caller-IP gate: second engine instance whose allowlist EXCLUDES loopback
+PORT=9005 ENGINE_ALLOWED_IPS=10.0.0.99 node "$ROOT/Private/Syllable/api-server.js" >/tmp/eng9005.log 2>&1 &
+EPID=$!
+for i in 1 2 3 4 5 6; do curl -s -o /dev/null http://127.0.0.1:9005/health && break; sleep 0.5; done
+check "engine: caller ip not allow-listed -> 403" 403 "$(code -X POST http://127.0.0.1:9005/metadata -H 'Content-Type: application/json' -H "X-API-Key: $KEYV" -d '{}')"
+kill "$EPID" 2>/dev/null
 
 echo
 [ "$fail" = 0 ] && echo "ALL PASS" || echo "SOME FAILURES"

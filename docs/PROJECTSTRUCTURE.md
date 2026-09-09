@@ -78,6 +78,16 @@ stubbed or unwired; the contracts below are what to trust. Read before grepping.
   misaligns any validator (filename, userId, sessionId, textSha256,
   textBytes) is rejected 403 and the record is burned — one pre-receive
   authorises at most one push. The Python PRASER never calls the engine.
+- The engine handshake is gated too (key + IP + origin, fail closed):
+  X-API-Key must match the root .env FSM_KEY/ENGINE_KEY, the caller IP must
+  be allow-listed (explicit ENGINE_ALLOWED_IPS wins verbatim; default =
+  DEV_BYPASS_IP entries + loopback), and any Origin/Referer must resolve to
+  an ENGINE_ALLOWED_ORIGINS host (dev placeholder localhost:3000). /health
+  is the only open route.
+- readFromApi's FSM stream yields at \n boundaries by design — 256 KB
+  chunks, never splitting Burmese mid-line. That reader was correct all
+  along; the 1.7.0 corruption was in the HTTP JSON reader (per-chunk
+  decode). Do not "fix" the stream.
 
 ---
 
