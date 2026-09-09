@@ -1,0 +1,303 @@
+import { type DragEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ErrorBoundary } from '@/components/error-boundary';
+import { Toaster } from '@/components/ui/toaster';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import NotFound from '@/pages/not-found';
+import {
+  Route,
+  Switch,
+  useLocation,
+  Router as WouterRouter,
+} from 'wouter';
+
+const queryClient = new QueryClient();
+
+function Home() {
+  const [stage, setStage] = useState<'idle' | 'processing' | 'ready'>('idle');
+  const [file, setFile] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [format, setFormat] = useState('DOCX');
+  const [converted, setConverted] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (stage !== 'processing') return;
+    const timer = window.setTimeout(() => setStage('ready'), 2850);
+    return () => window.clearTimeout(timer);
+  }, [stage]);
+
+  const acceptFile = (candidate?: File) => {
+    if (!candidate) return;
+    const valid = candidate.type === 'application/pdf' || candidate.name.toLowerCase().endsWith('.pdf');
+    if (!valid) {
+      setUploadError('That one is not a PDF. Choose a .pdf file to keep going.');
+      return;
+    }
+    if (candidate.size > 25 * 1024 * 1024) {
+      setUploadError('That file is a little hefty. PDFs need to be 25 MB or smaller.');
+      return;
+    }
+    setUploadError('');
+    setFile(candidate);
+    setConverted(false);
+    setStage('processing');
+  };
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragging(false);
+    acceptFile(event.dataTransfer.files[0]);
+  };
+
+  const reset = () => {
+    setFile(null);
+    setConverted(false);
+    setUploadError('');
+    setStage('idle');
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  return (
+    <main className="paperflow-app">
+      <div className="paperflow-shell">
+        <header className="paperflow-nav reveal">
+          <button className="brand-mark" type="button" onClick={reset} data-testid="button-brand-home" aria-label="Paperflow home">
+            <span className="brand-symbol"><LogoIcon /></span>
+            <span className="brand-name">paperflow</span>
+          </button>
+          <span className="nav-note">A little studio for busy documents</span>
+          <span className="nav-pill"><i /> Free to try · no account</span>
+        </header>
+
+        <section className="hero">
+          <div className="hero-grid">
+            <div className="hero-intro">
+              <div className="eyebrow reveal">PDF, meet your next chapter</div>
+              <h1 className="reveal reveal-delay-1">Make paper<br /><em>move.</em></h1>
+              <p className="hero-copy reveal reveal-delay-2">Turn stubborn PDFs into files you can actually work with. Drop it in, pick a format, and let Paperflow handle the fussy bits.</p>
+              <div className="hero-aside reveal reveal-delay-3">
+                <div className="avatar-stack" aria-hidden="true"><span>AK</span><span>JM</span><span>RS</span></div>
+                <span>Loved by people who read the fine print.</span>
+              </div>
+            </div>
+
+            <div className="dropzone-wrap reveal reveal-delay-2">
+              <div
+                className={`dropzone ${dragging ? 'dragging' : ''}`}
+                onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={handleDrop}
+                data-testid="dropzone-pdf"
+              >
+                {stage === 'idle' && (
+                  <div className="dropzone-content">
+                    <span className="arrow one"><ArrowIcon /></span>
+                    <span className="arrow two"><ArrowIcon /></span>
+                    <span className="arrow three"><ArrowIcon /></span>
+                    <span className="arrow four"><ArrowIcon /></span>
+                    <div className="upload-orbit"><div className="upload-icon"><UploadIcon /></div></div>
+                    <h2>{dragging ? 'Right this way' : 'Drop your PDF here'}</h2>
+                    <p>{dragging ? 'Release to start the paper shuffle.' : 'We’ll turn the pages into something much more useful.'}</p>
+                    <input
+                      ref={inputRef}
+                      id="pdf-upload"
+                      className="file-input"
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      onChange={(event) => acceptFile(event.target.files?.[0])}
+                      data-testid="input-pdf-upload"
+                    />
+                    <label className="upload-button" htmlFor="pdf-upload" data-testid="button-upload-pdf">
+                      Choose a PDF <UploadIcon small />
+                    </label>
+                    <p className="drop-hint">PDF only · up to 25 MB</p>
+                    {uploadError && <p className="upload-error" role="alert" data-testid="status-upload-error">{uploadError}</p>}
+                  </div>
+                )}
+
+                {stage === 'processing' && (
+                  <div className="processing-state" data-testid="status-processing">
+                    <div className="processing-inner">
+                      <ReadingCharacter />
+                      <h2>Reading ur text and processing</h2>
+                      <p>Finding the good bits · keeping the layout tidy</p>
+                      <span className="loader-line" aria-hidden="true" />
+                    </div>
+                  </div>
+                )}
+
+                {stage === 'ready' && (
+                  <div className="ready-state" data-testid="status-ready">
+                    <div className="ready-inner">
+                      <div className="ready-kicker"><CheckIcon /> Your document is ready</div>
+                      <h2 className="ready-title">What should it become?</h2>
+                      <p className="ready-subtitle"><FileIcon /> {file?.name || 'your-document.pdf'}</p>
+                      <span className="format-label">Choose a format</span>
+                      <div className="format-options" role="group" aria-label="Choose output format">
+                        {['DOC', 'DOCX', 'TXT', 'PDF'].map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            className={`format-button ${format === option ? 'selected' : ''}`}
+                            onClick={() => { setFormat(option); setConverted(false); }}
+                            data-testid={`button-format-${option.toLowerCase()}`}
+                            aria-pressed={format === option}
+                          >{option}</button>
+                        ))}
+                      </div>
+                      <button className="convert-button" type="button" onClick={() => setConverted(true)} data-testid="button-convert">
+                        {converted ? `Ready to save as ${format}` : `Convert to ${format}`} <ArrowRightIcon />
+                      </button>
+                      {converted && <div className="success-note" data-testid="status-converted"><CheckIcon /> Nice. Your {format} is ready to take with you.</div>}
+                      <button className="reset-button" type="button" onClick={reset} data-testid="button-convert-another">Convert another file</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="below-fold" aria-labelledby="formats-heading">
+          <div className="section-heading">
+            <h2 id="formats-heading">One PDF.<br />Four good directions.</h2>
+            <p>No settings maze. Just clean, selectable text that’s ready to get on with the rest of your work.</p>
+          </div>
+          <div className="format-strip">
+            <article className="format-card featured">
+              <span className="format-tag">Most loved</span>
+              <div><div className="format-icon"><DocIcon /></div><h3>DOCX</h3><p>For edits, comments, and making it yours.</p></div>
+            </article>
+            <article className="format-card">
+              <span className="format-tag">Keep writing</span>
+              <div><div className="format-icon"><DocIcon /></div><h3>DOC</h3><p>The classic, still dependable.</p></div>
+            </article>
+            <article className="format-card">
+              <span className="format-tag">Just the words</span>
+              <div><div className="format-icon"><TextIcon /></div><h3>TXT</h3><p>Simple text. Zero distractions.</p></div>
+            </article>
+            <article className="format-card">
+              <span className="format-tag">Stay portable</span>
+              <div><div className="format-icon"><PdfIcon /></div><h3>Selectable PDF</h3><p>All the shape, none of the locked-in.</p></div>
+            </article>
+          </div>
+        </section>
+
+        <footer className="footer">
+          <span className="footer-note">Made carefully for the paper pile.</span>
+          <div className="footer-links">
+            <button type="button" onClick={() => window.alert('Your files stay in this browser demo and are never uploaded.')} data-testid="button-privacy">Privacy, in plain English</button>
+            <button type="button" onClick={() => window.alert('Paperflow works best with clear PDFs under 25 MB.')} data-testid="button-help">Need a hand?</button>
+          </div>
+        </footer>
+      </div>
+    </main>
+  );
+}
+
+function LogoIcon() {
+  return <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M9 6.5h10.7L25 11.8v13.7a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-17a2 2 0 0 1 2-2Z" stroke="currentColor" strokeWidth="1.8" /><path d="[...]
+}
+
+function UploadIcon({ small = false }: { small?: boolean }) {
+  return <svg viewBox="0 0 24 24" width={small ? 17 : 34} height={small ? 17 : 34} fill="none" aria-hidden="true"><path d="M12 16V4m0 0L7.8 8.2M12 4l4.2 4.2M5 14.8v3.1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-[...]
+}
+
+function ArrowIcon() {
+  return <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M4 25 25 5m0 0H10m15 0v15" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
+function ArrowRightIcon() {
+  return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="ro[...]
+}
+
+function CheckIcon() {
+  return <svg viewBox="0 0 20 20" width="15" height="15" fill="none" aria-hidden="true"><path d="m4 10.2 3.7 3.7L16 5.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="rou[...]
+}
+
+function FileIcon() {
+  return <svg viewBox="0 0 18 18" width="16" height="16" fill="none" aria-hidden="true"><path d="M5 2.5h5.2L14 6.3v8.2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWid[...]
+}
+
+function DocIcon() {
+  return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true"><path d="M6.5 3.5h7.2l3.8 3.8v13.2H6.5a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2Z" stroke="currentColor" strokeWidth="1.5"[...]
+}
+
+function TextIcon() {
+  return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true"><path d="M5 6.5h14M8 6.5v11m8-11v11M6 17.5h4M14 17.5h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="r[...]
+}
+
+function PdfIcon() {
+  return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true"><path d="M6.5 3.5h7.2l3.8 3.8v13.2H6.5a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2Z" stroke="currentColor" strokeWidth="1.5"[...]
+}
+
+function ReadingCharacter() {
+  return (
+    <svg viewBox="0 0 360 240" fill="none" aria-label="A character reading one book and writing into another">
+      <path d="M24 213.5c55-13 91-13 142 0 51-13 87-13 170 0" stroke="#EADDBA" strokeWidth="2" strokeLinecap="round" opacity=".45" />
+      <g className="book-pages">
+        <path d="m34 164 64-11 39 12-64 16-39-8v-9Z" fill="#F6C75B" stroke="#18383A" strokeWidth="2.5" />
+        <path d="m34 164 1 25 39 10 63-16v-18l-64 16-39-8Z" fill="#EBAA43" stroke="#18383A" strokeWidth="2.5" strokeLinejoin="round" />
+        <path d="m44 169 26 7m-23-1 31 8m-8-1 42-11" stroke="#B67737" strokeWidth="1.5" strokeLinecap="round" opacity=".7" />
+      </g>
+      <g className="writing-book">
+        <path d="m218 165 63-13 52 16-62 16-53-9v-10Z" fill="#F08A62" stroke="#18383A" strokeWidth="2.5" />
+        <path d="m218 165v25l53 11 62-17v-21l-62 16-53-9Z" fill="#D5654E" stroke="#18383A" strokeWidth="2.5" strokeLinejoin="round" />
+        <path d="m232 169 33 7m-30 2 35 7m11-10 31-8m-30 15 28-7" stroke="#F7D4A8" strokeWidth="1.5" strokeLinecap="round" opacity=".9" />
+      </g>
+      <g className="character-body">
+        <path d="M127 128c-1-30 11-52 32-59 23-8 46 7 50 32l7 48-85 9-4-30Z" fill="#F08A62" stroke="#18383A" strokeWidth="2.5" />
+        <path d="M133 128c17 5 54 4 77-7l6 29-80 8-3-30Z" fill="#E36A56" />
+        <path d="M154 150c-3 16-9 23-20 28m47-31c8 10 14 16 23 22" stroke="#18383A" strokeWidth="6" strokeLinecap="round" />
+        <path d="M125 178c-9 4-17 8-26 11m80-12c8 4 19 6 27 9" stroke="#F6C75B" strokeWidth="8" strokeLinecap="round" />
+      </g>
+      <g className="character-head">
+        <path d="M139 71c-8-16-2-36 15-45 16-9 39-3 48 11 8 13 5 32-8 43-16 13-46 12-55-9Z" fill="#F2B88E" stroke="#18383A" strokeWidth="2.5" />
+        <path d="M138 43c5-25 42-34 61-10-13-5-25-3-34 5-8 7-13 14-19 23-6-5-9-10-8-18Z" fill="#F6C75B" stroke="#18383A" strokeWidth="2.5" strokeLinejoin="round" />
+        <circle cx="158" cy="58" r="2.3" fill="#18383A" /><circle cx="184" cy="54" r="2.3" fill="#18383A" />
+        <path d="M166 68c5 3 10 3 14-1" stroke="#18383A" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M146 58c-7-5-12-3-16 2m53-12c4-7 11-9 16-4" stroke="#18383A" strokeWidth="2.5" strokeLinecap="round" />
+      </g>
+      <path d="M111 106c13 3 24 13 30 25m66-34c12 7 22 17 25 31" stroke="#F2B88E" strokeWidth="11" strokeLinecap="round" />
+      <path d="m217 125 9 13 16-15" stroke="#F2B88E" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m232 118 8-12" stroke="#F6C75B" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="242" cy="104" r="3" fill="#F6C75B" />
+      <path d="m76 151 7-8m1 13 10-5m-3 12 11 1" stroke="#F6C75B" strokeWidth="2" strokeLinecap="round" opacity=".8" />
+    </svg>
+  );
+}
+
+function Router() {
+  return (
+    // Keep a shared shell (sidebar, navbar) outside the boundary so it
+    // survives a page crash.
+    <RoutedErrorBoundary>
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route component={NotFound} />
+      </Switch>
+    </RoutedErrorBoundary>
+  );
+}
+
+function RoutedErrorBoundary({ children }: { children: ReactNode }) {
+  const [location] = useLocation();
+  return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+          <Router />
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
