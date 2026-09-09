@@ -1,4 +1,4 @@
-import logger from '../../Private/Bridge/logen.js';
+import logger from '../../../Private/Bridge/logen.js';
 import 'dotenv/config';
 import { pool } from './db.js';
 async function testDB() {

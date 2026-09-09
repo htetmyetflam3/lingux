@@ -1,7 +1,14 @@
 import { Router } from 'express';
-import { createParser } from '../../../Site/Public/_file/parser.js';
-import { createSaveOriginal } from '../../../Site/Public/_file/saveOriginfile.js';
-import { QUARANTINE_DIR } from '../../../Site/Public/_file/paths.js';
+import path from 'path';
+import { createParser } from '../../../Public/_file/parser.js';
+import {
+  createPythonPdfParser,
+  createPythonDocxParser,
+  createPraserDocxRenderer,
+} from '../../../Public/_file/pythonPdf.js';
+import { createSaveOriginal } from '../../../Public/_file/saveOriginfile.js';
+import { QUARANTINE_DIR, OUTPUT_DOCX_DIR } from '../../../Public/_file/paths.js';
+import { createEngineBridge } from '../generator/engine.js';
 import { createTextHolder } from '../text/content.js';
 import { createRawSaver } from '../generator/rawSaver.js';
 import { createInputHandler } from '../proxy/requestHandler.js';
@@ -18,7 +25,19 @@ export function createIncomingRouter({ upload, pool, request }) {
   const saveOriginal = createSaveOriginal({
     quarantineDir: QUARANTINE_DIR,
   });
-  const parser = createParser({ saveOriginal });
+  // .pdf and .docx are server-only: the PRASER Python side does the encoding
+  // work (embedded-cmap/model decoding + Zawgyi→Unicode) that browser
+  // extractors cannot (see _file/pythonPdf.js). These injections are what
+  // make a bare PDF or DOCX upload parse. NO binary is parsed in this
+  // process — the clients FORWARD the upload to the PRASER service
+  // (port-to-port, same web) and remember its job id for the engine bind.
+  const pdfPraser = createPythonPdfParser();
+  const docxPraser = createPythonDocxParser();
+  const parser = createParser({
+    saveOriginal,
+    pdfParser: pdfPraser.parse,
+    docxParser: docxPraser.parse,
+  });
   const textHolder = createTextHolder();
   const rawSaver = createRawSaver();
   const inputHandler = createInputHandler({
@@ -26,6 +45,12 @@ export function createIncomingRouter({ upload, pool, request }) {
     metadataGuard: request,
     rawSaver,
   });
+  // Site → Private connection: after parsing finishes, the result goes to
+  // the Engine in the request BODY (decision rationale in engine.js), tagged
+  // with submitId as the hash. The docx renderer re-wraps the Engine's
+  // processed text back into a .docx for docx uploads.
+  const engineBridge = createEngineBridge();
+  const docxRenderer = createPraserDocxRenderer()();
 
   const router = Router();
 
@@ -50,25 +75,16 @@ export function createIncomingRouter({ upload, pool, request }) {
         source,
       });
 
-      // 3) File handling — the original is ALWAYS kept for reference:
-      //    - with client text (browser parsed it via mammoth/pdf.js/FileReader):
-      //      trust that text, skip server-side parsing, quarantine the original
-      //    - without client text (.doc, or API clients): parse server-side
+      // 3) File handling — EVERY file is parsed server-side. Browser
+      //    extractors pass Zawgyi/imposter code points straight through;
+      //    only the PRASER side does the encoding work. The request-carried
+      //    `text` field is for plain text submissions (no file) only.
+      //    The parser quarantines the original before parsing.
       let quarantinePath = null;
       if (req.file) {
-        const clientText =
-          typeof req.body?.text === 'string' && req.body.text.trim()
-            ? req.body.text
-            : null;
-
-        if (clientText) {
-          parsedText = clientText;
-          quarantinePath = await saveOriginal(req.file); // silent reference copy
-        } else {
-          const parsed = await parser(req.file);
-          parsedText = parsed.textContent;
-          quarantinePath = parsed.savedPath;   // ← quarantine path from parser
-        }
+        const parsed = await parser(req.file);
+        parsedText = parsed.textContent;
+        quarantinePath = parsed.savedPath; // ← quarantine path from parser
       }
 
       // 4) Chain: validate → hold text → save raw → finalize DB
@@ -79,18 +95,90 @@ export function createIncomingRouter({ upload, pool, request }) {
         quarantinePath,   // ← pass it through
       });
 
+      // 4a) Uploader side of the engine handshake: the identity now exists
+      //     (responses.js minted {submitId}{ext} on save) — bind it to the
+      //     praser job the binary created. The ENGINE later presents the
+      //     hidden-delivered metadata against this binding. A bind failure
+      //     degrades gracefully: the upload survives, the engine collect
+      //     simply never aligns.
+      if (req.file) {
+        // only the formats that WENT through the praser service have a job
+        const ext = req.file.originalname.split('.').pop().toLowerCase();
+        const praser =
+          ext === 'pdf' ? pdfPraser
+          : ext === 'docx' || ext === 'doc' ? docxPraser
+          : null; // .txt never saw the service — nothing to bind
+        if (praser?.lastJob?.id) {
+          try {
+            await praser.bindIdentity({
+              submitId: result.submitId,
+              filename: result.filename, // the FRONTEND-created name
+              userId: String(req.userId),
+              sessionId: req.visitorHash,
+              formId,
+            });
+          } catch (err) {
+            console.error('[incoming] praser bind:', err.message);
+          }
+        }
+      }
 
+      // 4b) Site → Private. Parsing is finished and the raw text is on
+      //     disk — NOW open the engine connection and push the result
+      //     (file submissions only: a plain-text submit never opened the
+      //     PRASER connection). Sent in the BODY with submitId as the hash;
+      //     a .docx upload comes back re-wrapped as .docx. Any engine
+      //     failure degrades gracefully — the upload itself survives.
+      let engine = null;
+      if (source === 'file' && parsedText) {
+        try {
+          engine = await engineBridge.push({
+            submitId: result.submitId,
+            filename: result.filename, // the FRONTEND-created name ({submitId}{ext})
+            text: parsedText,
+            metadata: {
+              formId,
+              userId: req.userId, // validators, NOT optional (cookie chain)
+              sessionId: req.visitorHash,
+              source,
+              originalName: req.file.originalname,
+            },
+          });
+          const ext = req.file.originalname.split('.').pop().toLowerCase();
+          if (ext === 'docx' && engine.text) {
+            const outPath = path.join(OUTPUT_DOCX_DIR, `${result.submitId}.docx`);
+            await docxRenderer(engine.text, outPath);
+            engine.docxPath = outPath;
+          }
+        } catch (err) {
+          console.error('[incoming] engine push:', err.message);
+          engine = { connected: false, error: err.message };
+        }
+      }
 
       // 5) Burn quota
       await request.incrementQuota({ userId: req.userId });
 
-      // 6) Return formId + text for frontend textarea
+      // 6) Return formId + text for frontend textarea (+ engine result)
       const textContent = source === 'file' ? parsedText : req.body?.text || '';
       res.status(202).json({
         formId,
         submitId: result.submitId,
         text: textContent,
         status: 'pending',
+        ...(engine
+          ? {
+              engine: {
+                connected: engine.connected,
+                ...(engine.error ? { error: engine.error } : {}),
+                ...(engine.engineHash ? { engineHash: engine.engineHash } : {}),
+                ...(engine.syllableCount !== undefined
+                  ? { syllableCount: engine.syllableCount }
+                  : {}),
+                ...(engine.docxPath ? { docxPath: engine.docxPath } : {}),
+              },
+            }
+          : {}),
       });
     } catch (err) {
       console.error('[incoming]', err);

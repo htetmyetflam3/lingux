@@ -8,7 +8,11 @@ import path from "path";
 const TREE_DIR = "PDF/Python/File/.tree/";
 const LOG_DIR = "PDF/Python/File/.output/.log/";
 const OUTPUT_DIR = "PDF/Python/File/.output/txt/";
-const DATA_DIR = "ENGINE/Part/Engine/_knowledge/json";
+// CORRECTED for this repo (reference-for-kmt.md watch-out #1): the JSON
+// constants used to point at the private layout (ENGINE/Part/Engine/...)
+// where default-path calls failed with ENOENT. Here the knowledge JSON
+// lives at Private/Engine/_knowledge/json (master.json.enc next to it).
+const DATA_DIR = "Private/Engine/_knowledge/json";
 const INPUT_DIR = "PDF/Python/File/input/";
 const JSC_FILE = "Private/Syllable/mapper/map/map-runtime.jsc";
 

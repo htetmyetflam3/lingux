@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import fs from 'fs';
-// eslint-disable-next-line no-unused-vars -- intentional unused variable in test/experimental code
 import path from 'path';
+import { sessionBypassEnabled } from '../../cookie/devbypass.js';
+import { RAW_TXT_DIR } from '../../../Public/_file/paths.js';
 
 export function createHiddenRouter({ pool, fsmEndpoint, fsmKey }) {
   const router = Router();
@@ -76,16 +77,31 @@ export function createHiddenRouter({ pool, fsmEndpoint, fsmKey }) {
       }
 
       const { submitId } = req.params;
-      const [rows] = await pool.query(
-        'SELECT bridge_path, file_name FROM submissions WHERE submit_id = ?',
-        [submitId],
-      );
-      if (!rows.length || !rows[0].bridge_path) {
-        return res.status(404).json({ error: 'File not found' });
-      }
 
-      const filePath = rows[0].bridge_path;
-      const fileName = rows[0].file_name || 'raw.txt';
+      let filePath;
+      let fileName;
+      if (sessionBypassEnabled()) {
+        // DEV ONLY (DB unreachable): rawSaver writes deterministically to
+        // .output/txt/{submitId}.txt, so resolve the file straight from disk
+        // instead of the submissions row. sessionBypassEnabled fails closed,
+        // so this never runs in production.
+        filePath = path.join(RAW_TXT_DIR, `${submitId}.txt`);
+        fileName = `${submitId}.txt`;
+        if (!fs.existsSync(filePath)) {
+          return res.status(404).json({ error: 'File not found' });
+        }
+      } else {
+        const [rows] = await pool.query(
+          'SELECT bridge_path, file_name FROM submissions WHERE submit_id = ?',
+          [submitId],
+        );
+        if (!rows.length || !rows[0].bridge_path) {
+          return res.status(404).json({ error: 'File not found' });
+        }
+
+        filePath = rows[0].bridge_path;
+        fileName = rows[0].file_name || 'raw.txt';
+      }
 
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
       res.setHeader('X-Content-Type-Options', 'nosniff');

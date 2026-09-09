@@ -1,8 +1,21 @@
-import logger from '../../Private/Bridge/logen.js';
+import logger from '../../../Private/Bridge/logen.js';
 import { pool } from '../db/db.js';
 import { decodeCookie, encodeCookie } from './codec.js';
+import { sessionBypassEnabled, devIdentity } from './devbypass.js';
 export async function cookieDBCheck(req, res, next) {
   try {
+    // DEV_BYPASS_SESSION: no users lookup — the DB is not available in dev.
+    // Identity still comes from the real cookie cookieGenerator just built or
+    // decoded (same visitor uuid a browser would carry), so a round trip sees
+    // the same visitor signature on both sides.
+    if (sessionBypassEnabled()) {
+      const identity = devIdentity(req);
+      req.userId = identity.userId;
+      req.user = identity.user;
+      req.visitorHash = identity.visitorHash;
+      req.cookieData = identity.cookieData;
+      return next();
+    }
     const reqIp = req.trustedIp || req.socket?.remoteAddress || '';
     const bypassIp = process.env.DEV_BYPASS_IP || '';
     const isBypass =

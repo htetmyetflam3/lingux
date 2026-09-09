@@ -1,4 +1,4 @@
-import logger from '../../../Private/Bridge/logen.js';
+import logger from '../../../../Private/Bridge/logen.js';
 import { Router } from 'express';
 import { createOutgoingResponseHandler } from '../proxy/responseHandler.js';
 export function createOutgoingRouter({ pool, request }) {

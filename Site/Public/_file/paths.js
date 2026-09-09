@@ -36,6 +36,9 @@ export const QUARANTINE_DIR = path.join(PRASER_PY, "upload", "quarantine");
 export const OUTPUT_DIR = path.join(PRASER_PY, ".output");
 export const RAW_TXT_DIR = path.join(OUTPUT_DIR, "txt");
 export const ORIGINAL_DIR = path.join(OUTPUT_DIR, "original");
+// Rewritten results: a .docx upload goes to the Engine as txt and comes back
+// re-wrapped as .output/docx/{submitId}.docx (see generator/engine.js).
+export const OUTPUT_DOCX_DIR = path.join(OUTPUT_DIR, "docx");
 
 // ── Server logs (access.log, sql.log, cookie.log, cookie-updates.log) ──
 export const LOGS_DIR = path.join(PRASER_PY, "logs");
@@ -58,6 +61,7 @@ export function ensurePraserDirs() {
     QUARANTINE_DIR,
     RAW_TXT_DIR,
     ORIGINAL_DIR,
+    OUTPUT_DOCX_DIR,
     LOGS_DIR,
   ]) {
     fs.mkdirSync(dir, { recursive: true });

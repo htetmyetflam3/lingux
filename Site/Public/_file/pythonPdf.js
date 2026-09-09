@@ -1,25 +1,40 @@
 // FILE: _file/pythonPdf.js
 //
-// The PDF parser slot in parser.js, backed by the PRASER Python extractor.
+// The Node shell around the PRASER Python extractor — .pdf AND .docx.
 //
-// Why PDFs do not get parsed in the browser
-// ─────────────────────────────────────────
-// A .txt or .docx stores text AS TEXT. A PDF stores GLYPH IDS plus a font, and
-// the text you get back depends on being able to resolve those ids. Measured on
+// Why these formats do not get parsed in the browser
+// ─────────────────────────────────────────────────
+// A .txt or .docx stores text AS TEXT, a PDF stores GLYPH IDS plus a font —
+// but for Burmese documents BOTH carry the same problem: the stored code
+// points are Zawgyi/imposter-encoded, and a browser extractor (pdf.js,
+// mammoth.js) hands them back verbatim. Only the Python side does the
+// encoding work (embedded-TTF cmap resolution, model-first decoding,
+// Zawgyi detection + Rabbit conversion). Measured on
 // upload/input/pdf/test.pdf (764 pages):
 //
 //   pdf.js  → "Chapter 701: ေကာငး့ကငးမီ့လြ္ဵတိုကးပျဲ"   p(zawgyi) = 1.000
 //   PRASER  → "Chapter 701: ကောင်းကင်မီးလျှံတိုက်ပွဲ"   p(zawgyi) = 0.000
 //
-// The PDF's ToUnicode CMaps point at Zawgyi/imposter lookalikes, so pdf.js
-// returns confident garbage. Running Rabbit over that output only half-converts
-// it. The embedded TTF cmap is the only authority, and reading it is what the
-// Python side does (pick_embedded_font / parse_ttf_cmap).
+// Which is why every FILE upload is parsed server-side now; only a plain
+// text submission (no file) travels as request-carried text.
 //
-// Cost: the whole 764-page book extracts in ~2s using nothing but the Python
-// standard library (re, zlib, struct, unicodedata, zipfile) — there is no
-// dependency to install and no Flask process to keep alive, so this shells out
-// to the same CLI you run by hand.
+// SERVICE, NOT SPAWN — the owner's two-web design
+// ───────────────────────────────────────────────
+// No binary is parsed inside the Site server process: the uploaded file is
+// forwarded AS-IS (multipart, port-to-port on the same web) to the PRASER
+// service (`module/api.py`, PRASER_ENDPOINT). The service runs the same
+// detect → Rabbit → cleanup pipeline and answers with ONE plain text plus
+// its internal job id. The job id is what the engine handshake hangs on:
+// after the Site mints the submission identity it BINDS that identity to
+// the job (/api/engine/bind), and the ENGINE — which initiates every
+// cross-web connection — later presents the hidden-delivered metadata at
+// /api/engine/collect and receives the text as the response. The engine
+// never touches binaries; this module is the ONLY place a binary crosses
+// the Site boundary, and it crosses unopened.
+//
+// (.doc remains the exception: legacy binary format, antiword/catdoc in
+// parser.js. The docx RESULT rewrite still shells out to the CLI — the
+// render side, not the parse side.)
 
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -36,114 +51,176 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PRASER_PY = path.resolve(__dirname, '..', 'PRASER', 'Python');
 const ENTRY = path.join('module', 'prase.py');
 
+/** The PRASER service (same web as the frontend — port-to-port in dev). */
+export const PRASER_ENDPOINT = (
+  process.env.PRASER_ENDPOINT || 'http://127.0.0.1:5055'
+).replace(/\/$/, '');
+
 const DEFAULTS = {
-  pythonBin: process.env.PYTHON_BIN || 'python3',
   // 764 pages ≈ 2s. A minute is already absurdly generous; the point is that a
-  // malformed PDF can never pin a worker forever.
+  // malformed file can never pin a worker forever.
   timeoutMs: Number.parseInt(process.env.PRASER_TIMEOUT_MS || '60000', 10),
   // 'no' = never silently rewrite the user's text. The imposter/reorder cleanup
   // is a decision the user makes, not something we apply behind their back.
   cleanup: process.env.PRASER_CLEANUP || 'no',
-  maxBuffer: 32 * 1024 * 1024, // stdout is only progress logging, but be safe
 };
 
 /**
- * Strip the metadata banner render_texts() writes at the top of the .txt.
+ * Build a parser function around the PRASER SERVICE (module/api.py).
+ * Forwards the uploaded binary UNOPENED as multipart and returns the one
+ * plain text the service extracted. The service's job id is remembered on
+ * `client.lastJob` so the caller can bind the submission identity to it
+ * once the Site has minted {submitId, filename}.
  *
- * It carries the absolute source path, which must never reach the browser, but
- * it also carries the per-encoding page counts — worth keeping as metadata.
- *
- *   # Source: /abs/path/test.pdf
- *   # Pages: 764
- *   # Detection: 761 Zawgyi, 0 Unicode, 3 unknown
- *   ##################################################
+ * @param {string} label - human label for error messages ('PDF' | 'DOCX')
  */
-function splitBanner(raw) {
-  const meta = { pages: null, zawgyi: null, unicode: null, unknown: null };
-  const lines = raw.split('\n');
-  let i = 0;
-  for (; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^#{10,}\s*$/.test(line)) {
-      i++;
-      break;
-    }
-    if (!line.startsWith('#')) break; // no banner at all
-    const pages = line.match(/^#\s*Pages:\s*(\d+)/i);
-    if (pages) meta.pages = Number(pages[1]);
-    const det = line.match(
-      /^#\s*Detection:\s*(\d+)\s+Zawgyi,\s*(\d+)\s+Unicode,\s*(\d+)\s+unknown/i,
+function createPraserServiceParser(label) {
+  /** The most recent service job — { id, filename, kind, pages }. */
+  const client = {
+    lastJob: null,
+
+    /**
+     * Bind the minted submission identity onto the last job (the uploader
+     * side of the engine handshake). Once per job — a second bind is 403.
+     * @param {{ submitId: string, filename: string, userId: string,
+     *           sessionId: string, formId: string }} metadata
+     */
+    async bindIdentity(metadata) {
+      if (!client.lastJob?.id) {
+        throw new Error(`${label} praser bind: no service job to bind`);
+      }
+      const res = await fetch(`${PRASER_ENDPOINT}/api/engine/bind`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: client.lastJob.id, metadata }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        throw new Error(
+          `${label} praser bind ${res.status}: ${detail.slice(0, 200)}`,
+        );
+      }
+      return res.json();
+    },
+  };
+
+  client.parse = async function parseWithPraser(filePath) {
+    const buf = await fs.readFile(filePath);
+    const fd = new FormData();
+    fd.append(
+      'file',
+      new Blob([buf]),
+      path.basename(filePath) || `upload.${label.toLowerCase()}`,
     );
-    if (det) {
-      meta.zawgyi = Number(det[1]);
-      meta.unicode = Number(det[2]);
-      meta.unknown = Number(det[3]);
+
+    let json;
+    try {
+      const res = await fetch(`${PRASER_ENDPOINT}/api/preview`, {
+        method: 'POST',
+        body: fd,
+        signal: AbortSignal.timeout(DEFAULTS.timeoutMs),
+      });
+      json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.error || `${label} preview ${res.status}`);
+      }
+    } catch (err) {
+      if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+        throw new Error(
+          `${label} extraction timed out after ${DEFAULTS.timeoutMs}ms — the file is too large or malformed`,
+          { cause: err },
+        );
+      }
+      if (err.cause?.code === 'ENOENT' || err.code === 'ENOENT') {
+        throw new Error(
+          `${label} extractor unavailable: PRASER service at ${PRASER_ENDPOINT} unreachable`,
+          { cause: err },
+        );
+      }
+      if (err instanceof TypeError) {
+        throw new Error(
+          `${label} extractor unavailable: PRASER service at ${PRASER_ENDPOINT} unreachable`,
+          { cause: err },
+        );
+      }
+      throw err;
     }
-  }
-  while (i < lines.length && lines[i].trim() === '') i++;
-  return { text: lines.slice(i).join('\n'), meta };
+
+    // the service answers with the WHOLE document as one plain text —
+    // no metadata banner, no page markers, no HTML tags
+    const text = String(json.content ?? '');
+    client.lastJob = {
+      id: json.job_id ?? null,
+      filename: json.filename ?? null,
+      kind: json.kind ?? null,
+      pages: json.pages ?? 0,
+    };
+    if (!text.trim()) {
+      const hint =
+        label === 'PDF'
+          ? ' It is most likely a scan — image-only pages carry no text to extract.'
+          : '';
+      throw new Error(`No text found in this ${label}.${hint}`);
+    }
+    return text;
+  };
+
+  return client;
+}
+
+/** .pdf → PRASER service (embedded-cmap / model-first extraction + Rabbit). */
+export function createPythonPdfParser() {
+  return createPraserServiceParser('PDF');
+}
+
+/** .docx → PRASER service (same detect → Rabbit → cleanup pipeline, zip). */
+export function createPythonDocxParser() {
+  return createPraserServiceParser('DOCX');
 }
 
 /**
- * Build the pdfParser function that parser.js expects.
+ * Result rewrite: plain text → .docx via the PRASER CLI
+ * (`prase.py <in.txt> <out.docx>` — write_docx_plain, one paragraph per
+ * line). This is how a .docx upload is delivered after the Engine round
+ * trip: sent to the engine as txt, re-wrapped as docx on the way back.
  *
- * @returns {(filePath: string) => Promise<string>} extracted Unicode text
+ * @returns {(text: string, outPath: string) => Promise<string>} outPath
  */
-export function createPythonPdfParser(opts = {}) {
-  const cfg = { ...DEFAULTS, ...opts };
+export function createPraserDocxRenderer() {
+  return function (opts = {}) {
+    const cfg = {
+      pythonBin: process.env.PYTHON_BIN || 'python3',
+      timeoutMs: Number.parseInt(process.env.PRASER_TIMEOUT_MS || '60000', 10),
+      maxBuffer: 32 * 1024 * 1024,
+      ...opts,
+    };
 
-  return async function parsePdfWithPython(filePath) {
-    const outPath = path.join(
-      os.tmpdir(),
-      `praser_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.txt`,
-    );
-
-    try {
-      await execFileAsync(
-        cfg.pythonBin,
-        [ENTRY, filePath, outPath, '--cleanup', cfg.cleanup],
-        {
-          cwd: PRASER_PY, // prase.py resolves its model/fonts relative to itself
-          timeout: cfg.timeoutMs,
-          maxBuffer: cfg.maxBuffer,
-          killSignal: 'SIGKILL',
-          windowsHide: true,
-        },
+    return async function renderDocxFromText(text, outPath) {
+      const tmpTxt = path.join(
+        os.tmpdir(),
+        `praser_result_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.txt`,
       );
-    } catch (err) {
-      if (err.killed || err.signal === 'SIGKILL') {
-        throw new Error(
-          `PDF extraction timed out after ${cfg.timeoutMs}ms — the file is too large or malformed`,
-          { cause: err },
+      await fs.writeFile(tmpTxt, text, 'utf8');
+      try {
+        await execFileAsync(
+          cfg.pythonBin,
+          [ENTRY, tmpTxt, outPath],
+          {
+            cwd: PRASER_PY,
+            timeout: cfg.timeoutMs,
+            maxBuffer: cfg.maxBuffer,
+            killSignal: 'SIGKILL',
+            windowsHide: true,
+          },
         );
+      } catch (err) {
+        const detail = (err.stderr || err.message || '').toString().trim().split('\n').pop();
+        throw new Error(`DOCX rewrite failed: ${detail}`, { cause: err });
+      } finally {
+        await fs.unlink(tmpTxt).catch(() => {});
       }
-      if (err.code === 'ENOENT') {
-        throw new Error(
-          `PDF extractor unavailable: '${cfg.pythonBin}' not found on PATH`,
-          { cause: err },
-        );
-      }
-      const detail = (err.stderr || err.message || '').toString().trim().split('\n').pop();
-      throw new Error(`PDF extraction failed: ${detail}`, { cause: err });
-    }
-
-    let raw;
-    try {
-      raw = await fs.readFile(outPath, 'utf8');
-    } catch {
-      throw new Error('PDF extraction produced no output');
-    } finally {
-      await fs.unlink(outPath).catch(() => {});
-    }
-
-    const { text, meta } = splitBanner(raw);
-    if (!text.trim()) {
-      throw new Error(
-        'No text found in this PDF. It is most likely a scan — image-only pages carry no text to extract.',
-      );
-    }
-
-    parsePdfWithPython.lastMeta = meta; // observability, not contract
-    return text;
+      return outPath;
+    };
   };
 }

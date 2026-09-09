@@ -180,3 +180,51 @@ def _write_docx_layout(out_path, pages, pdf_path):
             if n == 0:
                 doc.write(_sect_pr(612.0, 792.0).encode('utf-8'))
             doc.write(b'</w:body></w:document>')
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Plain DOCX writer — text in, simple paragraphs out (no PDF layout)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def write_docx_plain(out_path, text):
+    """Write ``text`` as a plain DOCX: one paragraph per line.
+
+    The result-rewrite path (Engine output -> .docx) has no PDF layout to
+    reproduce — no per-line x/y or font sizes — so unlike _write_docx_layout
+    this makes NO claim of being a page replica. Streams in chunks so a
+    whole-book result stays constant-memory.
+    """
+    import zipfile
+
+    head = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/'
+            'wordprocessingml/2006/main"><w:body>')
+
+    with zipfile.ZipFile(out_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr('[Content_Types].xml',
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            '<Default Extension="xml" ContentType="application/xml"/>'
+            '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+            '</Types>')
+        zf.writestr('_rels/.rels',
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
+            '</Relationships>')
+        with zf.open('word/document.xml', 'w') as doc:
+            doc.write(head.encode('utf-8'))
+            lines = (text or '').split('\n')
+            step = 2000  # paragraphs per zip write — constant memory
+            for i in range(0, len(lines), step):
+                chunk = []
+                for line in lines[i:i + step]:
+                    if line:
+                        chunk.append(_layout_para(0.0, 0.0, 11.0, line))
+                    else:
+                        chunk.append('<w:p/>')
+                doc.write(''.join(chunk).encode('utf-8'))
+            doc.write(_sect_pr(612.0, 792.0).encode('utf-8'))
+            doc.write(b'</w:body></w:document>')
+    return out_path
