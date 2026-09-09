@@ -17,9 +17,10 @@ explanations. We all know what
 everyone else does.so this is a file
 to describe everyone else might assume
 wrongly without reading carefully 
-considering base  on  typical file name ,workflow and any other  
-missmatch case for people who  
-will touch  code after you ur 
+considering base on typical file name,
+workflow and any other missmatch 
+case for people whowill touch  
+code after you..u r
 allow to delete if the missmatch cases
 doesn't  not exist  anymore 
 Append the content by only writing 
