@@ -35,10 +35,10 @@ stubbed or unwired; the contracts below are what to trust. Read before grepping.
 - The daily quota is anti-spam for anonymous visitors (disk/CPU abuse,
   adversarial input), not billing. A paid tier later means a separate DB with
   accounts — not this gate.
-- Parsing split: `.txt`/`.docx` are parsed **in the browser** (the client needs
-  the text for in-browser grammar highlighting later; the server trusts a
-  `text` field sent with the file and keeps the original in quarantine). `.doc`
-  is server-side (antiword/catdoc). `.pdf` is server-only and currently unwired.
+- Parsing split: every FILE upload is parsed **server-side** now — .pdf and
+  .docx through PRASER (the Python side does the Zawgyi→Unicode encoding work
+  browser extractors can't), .doc via antiword/catdoc, .txt read from disk.
+  The request `text` field is for plain-text submissions only.
 - `က္က` → `ဣ` in syllable output is **correct**. Pali does not stack `က္က`;
   it uses `ဣ`. Words showing `က္က` are Burmese Pali-style loanwords.
 - The Engine does no linguistics with regex — table lookups + tree descent.
@@ -59,7 +59,7 @@ stubbed or unwired; the contracts below are what to trust. Read before grepping.
 | Site | `Site/Server/gateway/api/` | `POST /api/submit` → `{formId, submitId, text, status}` · `POST/GET /api/result` → look up by formId + userId · `POST /api/process` (X-API-Key) pushes the submission metadata — **fileName included** — plus a pull URL to `FSM_ENDPOINT` · `GET /api/hidden/raw/:submitId` (X-API-Key) streams the saved `.txt` |
 | Engine read | `Private/Engine/Ginit.js` (Module A) + `Private/Bridge/readFromApi.js` (Module B) | caller hands a hash → A builds the `segmented_{hash}_*.txt` name → B streams the file (256 KB chunks) and returns the text |
 | Engine process | `Private/Syllable/api-server.js` | `POST /process` `{text \| srcPath, flags}` → Engine reads the input through its own stream reader, runs the pipeline, writes only in its own workspace → `{hash, syllable positions}` |
-| Python PRASER | `Site/Public/PRASER/Python/module/api.py` | Flask: `GET /health` · `POST /api/preview` multipart pdf → `job_id` + cleanup changes · `POST /api/finalize` `job_id, apply, fmt` → download. Preview/finalize is the human-approval flow. Lacking: an endpoint that takes server metadata and returns one full text. No `client.py` exists. |
+| Python PRASER | `Site/Public/PRASER/Python/module/api.py` | Flask: `GET /health` · `POST /api/preview` multipart pdf/docx → `job_id` + `content` (whole body, plain) + cleanup changes · `GET/POST /api/content` `job_id, apply` → one full text · `POST /api/finalize` `job_id, apply, fmt` → download (docx jobs: txt only). Preview/finalize is the human-approval flow. |
 
 ## Request path (Site)
 
@@ -68,8 +68,8 @@ POST /api/submit
   headerCheck → cookieDBCheck              (gates only on /api)
   checkQuota                               → 429
   createUploadSession                      → formId
-  ├── client text present → trust it, quarantine the original
-  └── no client text      → server parser (.txt / .pdf / .doc)
+  ├── file present → server parser (.pdf/.docx via PRASER, .doc antiword, .txt read)
+  └── no file      → trust req.body.text
   chain: validate → textHolder → rawSaver → finalizeUpload
   incrementQuota
   → { formId, submitId, text, status:'pending' }
@@ -125,6 +125,8 @@ deployments.
 | `DB_HOST/PORT/USER/PASSWORD\|PASS/NAME` | MySQL pool |
 | `DEV_BYPASS_QUOTA` | quota layer runs DB-free |
 | `DEV_BYPASS_IP`, `DEV_BYPASS_HEADER` | skip cookie-DB upsert / header checks |
+| `DEV_BYPASS_SESSION` | opens the cookie/session gates for curl-style clients; MemoryStore sessions, raw-pull disk fallback. Hard-off when `NODE_ENV=production` |
+| `PYTHON_BIN`, `PRASER_TIMEOUT_MS`, `PRASER_CLEANUP` | the PRASER shell's python binary / exec timeout / cleanup default |
 | `FSM_ENDPOINT`, `FSM_KEY` | `hidden.js` push target + key |
 ----
 

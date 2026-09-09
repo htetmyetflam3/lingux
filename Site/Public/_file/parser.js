@@ -28,12 +28,17 @@ async function defaultDocParser(filePath) {
   }
 }
 /**
- * Backend parser for formats that cannot be handled client-side.
+ * Backend parser for the upload formats.
  *
- * Frontend handles: DOCX (mammoth.js), PDF (PDF.js), TXT (FileReader)
- * Backend handles:  TXT (fallback), PDF (fallback), DOC (antiword/catdoc)
+ * Every FILE is parsed server-side: Burmese files carry Zawgyi/imposter
+ * code points that browser extractors (mammoth.js, pdf.js) pass through
+ * untouched — only the PRASER Python side does the encoding work. The
+ * frontend sends plain text submissions only (no file → request-carried
+ * `text` field).
+ *
+ * Backend handles:  TXT (read), PDF (PRASER), DOCX (PRASER), DOC (antiword/catdoc)
  */
-export function createParser({ saveOriginal, pdfParser, docParser } = {}) {
+export function createParser({ saveOriginal, pdfParser, docxParser, docParser } = {}) {
   const _docParser = docParser || defaultDocParser;
   return async function parseFile(file) {
     const savedPath = await saveOriginal(file);
@@ -44,13 +49,11 @@ export function createParser({ saveOriginal, pdfParser, docParser } = {}) {
     } else if (ext === 'pdf') {
       if (!pdfParser) throw new Error('PDF parser not configured');
       textContent = await pdfParser(savedPath);
+    } else if (ext === 'docx') {
+      if (!docxParser) throw new Error('DOCX parser not configured');
+      textContent = await docxParser(savedPath);
     } else if (ext === 'doc') {
       textContent = await _docParser(savedPath);
-    } else if (ext === 'docx') {
-      throw new Error(
-        'DOCX parsing moved to frontend. Parse it client-side with mammoth.js ' +
-          'and submit the file together with the extracted "text" field to /api/submit.',
-      );
     } else {
       throw new Error(`Unsupported file type: ${ext}`);
     }

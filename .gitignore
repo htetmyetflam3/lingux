@@ -8,6 +8,7 @@
 *__pycache__*
 /__pycache__/
 *package.lock.json*
+package-lock.json
 # Runtime build artifacts
 /node_modules/
 *node_modules*
@@ -20,3 +21,10 @@ Thumbs.db
 *.swp
 /mymap*
 *mymap*
+# PRASER runtime upload residue (multer-sorted input + quarantine copies)
+Site/Public/PRASER/Python/upload/input/pdf/*
+!Site/Public/PRASER/Python/upload/input/pdf/test.pdf
+Site/Public/PRASER/Python/upload/input/docx/*
+!Site/Public/PRASER/Python/upload/input/docx/zawgyi_fixture.docx
+Site/Public/PRASER/Python/upload/quarantine/
+Site/Public/PRASER/Python/.output/

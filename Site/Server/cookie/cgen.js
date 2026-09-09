@@ -1,10 +1,11 @@
-import logger from '../../Private/Bridge/logen.js';
-import { LOGS_DIR } from '../../Site/Public/_file/paths.js';
+import logger from '../../../Private/Bridge/logen.js';
+import { LOGS_DIR } from '../../Public/_file/paths.js';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { createOrUpdateCookie } from '../db/cookie.js';
 import { encodeCookie, decodeCookie } from './codec.js';
+import { sessionBypassEnabled } from './devbypass.js';
 const logDir = LOGS_DIR;
 fs.mkdirSync(logDir, { recursive: true });
 function safeLog(filename, data) {
@@ -77,12 +78,15 @@ export const cookieGenerator = async (req, res, next) => {
     }
     const deviceFingerprint = hashFingerprint(cfHeader, userAgent, cfCountry);
     cookieData.deviceFingerprint = deviceFingerprint;
-    const bypassIp = process.env.DEV_BYPASS_IP || '';
-    const isBypass =
-      bypassIp && (cfHeader === bypassIp || cfHeader === '::ffff:' + bypassIp);
-    if (isBypass) {
+    if (sessionBypassEnabled()) {
+      // Dev bypass: no DB — but the identity itself stays real (visitor uuid,
+      // localStorageToken carried inside the encoded cookie), so a round trip
+      // sees the same visitor as it would with the DB upsert.
       cookieData.dbUserId = 1;
-      safeLog('cookie.log', `[${nowIso}] BYPASS_IP ${cfHeader} (no DB call)\n`);
+      safeLog(
+        'cookie.log',
+        `[${nowIso}] BYPASS_SESSION ${cookieData.userId} (no DB call)\n`,
+      );
     } else {
       const dbUserId = await createOrUpdateCookie({
         ...cookieData,

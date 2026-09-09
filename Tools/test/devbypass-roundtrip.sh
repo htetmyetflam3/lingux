@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Round-trip test for the /api/submit chain with DEV_BYPASS_SESSION=true.
+# Exercises: text submit · PDF upload (server-side PRASER) · DOCX upload
+# (server-side PRASER, Zawgyi fixture) · cookie/X-Visitor-Token round trip ·
+# engine raw pull · zero-DB assertion.
+#
+# Usage:  bash Tools/test/devbypass-roundtrip.sh [PORT]
+# Requires: the Site server running with DEV_BYPASS_SESSION=true
+#           (SKIP_BUILD=true PORT=$PORT DEV_BYPASS_SESSION=true node Site/index.js)
+set -u
+PORT="${1:-3210}"
+BASE="http://127.0.0.1:$PORT"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+PDF="$ROOT/Site/Public/PRASER/Python/upload/input/pdf/test.pdf"
+DOCX="$ROOT/Site/Public/PRASER/Python/upload/input/docx/zawgyi_fixture.docx"
+KEY="$(grep '^FSM_KEY=' "$ROOT/.env" | cut -d= -f2)"
+
+fail=0
+check() { # name expected actual
+  if [ "$2" = "$3" ]; then echo "PASS  $1 ($3)"; else echo "FAIL  $1 (expected $2, got $3)"; fail=1; fi
+}
+
+echo "== 1) text submit =="
+code=$(curl -s "$BASE/api/submit" -X POST -H 'Content-Type: application/json' \
+  -d '{"text":"မင်္ဂလာပါ ကမ္ဘာ"}' -D /tmp/rt_h1.txt -o /tmp/rt_b1.json -w '%{http_code}')
+check "text submit -> 202" 202 "$code"
+
+echo "== 2) PDF upload (server-side PRASER) =="
+code=$(curl -s "$BASE/api/submit" -X POST -F "file=@$PDF" \
+  -D /tmp/rt_h2.txt -o /tmp/rt_b2.json -w '%{http_code}')
+check "pdf submit -> 202" 202 "$code"
+
+echo "== 3) DOCX upload (raw-Zawgyi fixture -> converted) =="
+code=$(curl -s "$BASE/api/submit" -X POST -F "file=@$DOCX" \
+  -D /tmp/rt_h3.txt -o /tmp/rt_b3.json -w '%{http_code}')
+check "docx submit -> 202" 202 "$code"
+
+echo "== 4) bodies are single plain content =="
+node - "$fail" <<'EOF'
+import fs from 'fs';
+let bad = 0;
+for (const f of ['/tmp/rt_b1.json', '/tmp/rt_b2.json', '/tmp/rt_b3.json']) {
+  const { text } = JSON.parse(fs.readFileSync(f, 'utf8'));
+  const html = /<[a-zA-Z/][^>]*>/.test(text);
+  const banner = text.startsWith('#');
+  const marker = text.includes('--- Page');
+  if (!text?.length || html || banner || marker) { console.log(`FAIL  body shape ${f}`); bad = 1; }
+  else console.log(`PASS  body shape ${f} (len=${text.length})`);
+}
+process.exit(bad);
+EOF
+[ $? -ne 0 ] && fail=1
+
+echo "== 5) token signature round trip =="
+tok1=$(grep -i '^x-visitor-token:' /tmp/rt_h1.txt | tr -d '\r' | awk '{print $2}')
+cookie=$(grep -i '^set-cookie: userData=' /tmp/rt_h1.txt | sed 's/^[Ss]et-[Cc]ookie: //' | cut -d';' -f1)
+code=$(curl -s "$BASE/api/submit" -X POST -H 'Content-Type: application/json' \
+  -H "Cookie: $cookie" -d '{"text":"round trip"}' -D /tmp/rt_h4.txt -o /tmp/rt_b4.json -w '%{http_code}')
+check "replay -> 202" 202 "$code"
+tok2=$(grep -i '^x-visitor-token:' /tmp/rt_h4.txt | tr -d '\r' | awk '{print $2}')
+check "X-Visitor-Token stable" "$tok1" "$tok2"
+
+echo "== 6) engine raw pull =="
+submit=$(node -e "console.log(JSON.parse(fs.readFileSync('/tmp/rt_b3.json','utf8')).submitId)" 2>/dev/null \
+  || python3 -c "import json;print(json.load(open('/tmp/rt_b3.json'))['submitId'])")
+code=$(curl -s "$BASE/api/hidden/raw/$submit" -H "X-API-Key: $KEY" -o /tmp/rt_raw.txt -w '%{http_code}')
+check "raw pull -> 200" 200 "$code"
+code=$(curl -s -o /dev/null "$BASE/api/hidden/raw/$submit" -H "X-API-Key: wrong" -w '%{http_code}')
+check "bad key -> 403" 403 "$code"
+
+echo
+[ "$fail" = 0 ] && echo "ALL PASS" || echo "SOME FAILURES"
+exit "$fail"

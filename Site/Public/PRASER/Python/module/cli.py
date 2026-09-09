@@ -15,6 +15,8 @@ from paths import DEFAULT_OUTPUT_DIR
 from pipeline import (
     load_detector,
     process_pdf_stream,
+    process_docx_bytes,
+    build_content,
     render_texts,
 )
 
@@ -29,6 +31,10 @@ def parse_args():
     p.add_argument("--cleanup", choices=["ask", "yes", "no"], default="ask",
                    help="Imposter+reorder cleanup: 'ask' (default, y/N once before "
                         "conversion), 'yes' always apply, 'no' never apply.")
+    p.add_argument("--content", action="store_true",
+                   help="Print ONLY the extracted document body to stdout — one "
+                        "plain text, no banner, no page markers, no HTML. "
+                        "Progress logging moves to stderr.")
     p.add_argument("--serve", action="store_true", help="Run as Flask HTTP API instead of CLI")
     p.add_argument("--host", default="0.0.0.0", help="API bind host (default 0.0.0.0)")
     p.add_argument("--port", type=int, default=5000, help="API bind port (default 5000)")
@@ -54,6 +60,32 @@ def run_cli(args):
         sys.exit(1)
 
     detector = load_detector()
+
+    # --content: print ONLY the document body (one plain text, no banner,
+    # no page markers, no HTML) to stdout; progress goes to stderr. This is
+    # the shape the Node backend consumes (single content as whole body).
+    if args.content:
+        import contextlib
+
+        def _log_stderr(msg):
+            print(msg, file=sys.stderr)
+
+        is_docx = pdf_path.lower().endswith(".docx")
+        if is_docx:
+            with open(pdf_path, "rb") as fh:
+                job = process_docx_bytes(fh.read(), detector,
+                                         filename=os.path.basename(pdf_path),
+                                         log=_log_stderr)
+            body = build_content(job, args.cleanup in ("yes",))
+        else:
+            apply_cleanup = args.cleanup != "no"
+            if args.cleanup == "ask":
+                apply_cleanup = ask_cleanup_once()
+            _, _, reports = process_pdf_stream(pdf_path, detector, apply_cleanup,
+                                               log=_log_stderr, want_layout=False)
+            body = "\n\n".join(rep["text"] for rep in reports)
+        sys.stdout.write(body)
+        return
 
     # Resolve the output path FIRST: DOCX output needs the per-line layout
     # (x/y/font-size + MediaBox) carried through the streaming pass.
@@ -83,16 +115,31 @@ def run_cli(args):
     # Single-pass streaming pipeline: extract -> detect -> convert -> cleanup,
     # ONE PAGE AT A TIME. Only final page texts (+ layout for docx) are kept.
     print("[+] Processing pages (single-pass stream)...")
-    metadata, npages, reports = process_pdf_stream(pdf_path, detector,
-                                                   apply_cleanup, log=print,
-                                                   want_layout=want_layout)
-    counts = {"ZAWGYI": 0, "UNICODE": 0, "UNKNOWN": 0}
-    pages = []
-    total_changes = 0
-    for rep in reports:
-        counts[rep["category"]] = counts.get(rep["category"], 0) + 1
-        pages.append({k: rep[k] for k in ("text", "lines", "wh", "has_img") if k in rep})
-        total_changes += rep["n_changes"]
+    if pdf_path.lower().endswith(".docx"):
+        # DOCX input — same detect/Rabbit/cleanup pipeline, zip container.
+        with open(pdf_path, "rb") as fh:
+            job = process_docx_bytes(fh.read(), detector,
+                                     filename=os.path.basename(pdf_path),
+                                     log=print)
+        counts = job["counts"]
+        pages = []
+        for pg, rep in zip(job["pages"], job["reports"]):
+            text = (rep["clean"]
+                    if (apply_cleanup and rep["clean"] is not None)
+                    else pg["text"])
+            pages.append({"text": text})
+        total_changes = len(job["changes"])
+    else:
+        metadata, npages, reports = process_pdf_stream(pdf_path, detector,
+                                                       apply_cleanup, log=print,
+                                                       want_layout=want_layout)
+        counts = {"ZAWGYI": 0, "UNICODE": 0, "UNKNOWN": 0}
+        pages = []
+        total_changes = 0
+        for rep in reports:
+            counts[rep["category"]] = counts.get(rep["category"], 0) + 1
+            pages.append({k: rep[k] for k in ("text", "lines", "wh", "has_img") if k in rep})
+            total_changes += rep["n_changes"]
 
     print(f"[+] Detection done: {counts.get('ZAWGYI',0)} Zawgyi, "
           f"{counts.get('UNICODE',0)} Unicode, {counts.get('UNKNOWN',0)} unknown")

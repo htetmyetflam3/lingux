@@ -25,10 +25,11 @@ YoeYar-One otherwise — for both PDF and DOCX output.
 Two callers share the same pipeline:
 
   TERMINAL (CLI):
-      python module/prase.py <input.pdf> [output_path]
+      python module/prase.py <input.pdf|input.docx> [output_path]
       python module/prase.py input.pdf out.txt
       python module/prase.py input.pdf out.docx
       python module/prase.py input.pdf out.pdf
+      python module/prase.py input.docx out.txt          # docx in: txt out only
       python module/prase.py input.pdf out.txt --cleanup ask   # (default) y/N once
       python module/prase.py input.pdf out.txt --cleanup yes   # always apply
       python module/prase.py input.pdf out.txt --cleanup no    # never apply

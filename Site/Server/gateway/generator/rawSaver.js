@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { createResponseGenerator } from './responses.js';
-import { RAW_TXT_DIR, ORIGINAL_DIR } from '../../../Site/Public/_file/paths.js';
+import { RAW_TXT_DIR, ORIGINAL_DIR } from '../../../Public/_file/paths.js';
 
 // Raw text + original copies land inside the PRASER python project
 // (.../PRASER/Python/.output/txt and .../.output/original — leading dot on

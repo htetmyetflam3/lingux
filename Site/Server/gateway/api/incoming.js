@@ -1,7 +1,11 @@
 import { Router } from 'express';
-import { createParser } from '../../../Site/Public/_file/parser.js';
-import { createSaveOriginal } from '../../../Site/Public/_file/saveOriginfile.js';
-import { QUARANTINE_DIR } from '../../../Site/Public/_file/paths.js';
+import { createParser } from '../../../Public/_file/parser.js';
+import {
+  createPythonPdfParser,
+  createPythonDocxParser,
+} from '../../../Public/_file/pythonPdf.js';
+import { createSaveOriginal } from '../../../Public/_file/saveOriginfile.js';
+import { QUARANTINE_DIR } from '../../../Public/_file/paths.js';
 import { createTextHolder } from '../text/content.js';
 import { createRawSaver } from '../generator/rawSaver.js';
 import { createInputHandler } from '../proxy/requestHandler.js';
@@ -18,7 +22,15 @@ export function createIncomingRouter({ upload, pool, request }) {
   const saveOriginal = createSaveOriginal({
     quarantineDir: QUARANTINE_DIR,
   });
-  const parser = createParser({ saveOriginal });
+  // .pdf and .docx are server-only: the PRASER Python side does the encoding
+  // work (embedded-cmap/model decoding + Zawgyi→Unicode) that browser
+  // extractors cannot (see _file/pythonPdf.js). These injections are what
+  // make a bare PDF or DOCX upload parse.
+  const parser = createParser({
+    saveOriginal,
+    pdfParser: createPythonPdfParser(),
+    docxParser: createPythonDocxParser(),
+  });
   const textHolder = createTextHolder();
   const rawSaver = createRawSaver();
   const inputHandler = createInputHandler({
@@ -50,25 +62,16 @@ export function createIncomingRouter({ upload, pool, request }) {
         source,
       });
 
-      // 3) File handling — the original is ALWAYS kept for reference:
-      //    - with client text (browser parsed it via mammoth/pdf.js/FileReader):
-      //      trust that text, skip server-side parsing, quarantine the original
-      //    - without client text (.doc, or API clients): parse server-side
+      // 3) File handling — EVERY file is parsed server-side. Browser
+      //    extractors pass Zawgyi/imposter code points straight through;
+      //    only the PRASER side does the encoding work. The request-carried
+      //    `text` field is for plain text submissions (no file) only.
+      //    The parser quarantines the original before parsing.
       let quarantinePath = null;
       if (req.file) {
-        const clientText =
-          typeof req.body?.text === 'string' && req.body.text.trim()
-            ? req.body.text
-            : null;
-
-        if (clientText) {
-          parsedText = clientText;
-          quarantinePath = await saveOriginal(req.file); // silent reference copy
-        } else {
-          const parsed = await parser(req.file);
-          parsedText = parsed.textContent;
-          quarantinePath = parsed.savedPath;   // ← quarantine path from parser
-        }
+        const parsed = await parser(req.file);
+        parsedText = parsed.textContent;
+        quarantinePath = parsed.savedPath; // ← quarantine path from parser
       }
 
       // 4) Chain: validate → hold text → save raw → finalize DB

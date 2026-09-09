@@ -26,6 +26,7 @@ from pathlib import Path
 from paths import find_model_path
 from rabbit import Rabbit
 from cleanup import cleanup_text
+from docx_extract import extract_docx_paragraphs
 from pdf_extract import (
     CmapIdentityMap,
     IDENTITY,
@@ -42,7 +43,7 @@ from pdf_extract import (
     page_has_images,
     get_page_mediabox,
 )
-from render import _esc, _write_docx_layout, _write_pdf
+from render import _write_docx_layout, _write_pdf
 
 # Pages probed with direct Identity-H decoding before deciding whether the
 # document needs the ToUnicode / embedded-font-cmap fallback path.
@@ -373,6 +374,9 @@ def collect_changes(reports):
     """
     Build the list of lines that the cleanup would change (preview data).
     Line numbers refer to the cleaned/base text of each page.
+
+    Plain text only: ``original`` / ``suggested`` carry the raw lines, no
+    server-rendered HTML. Any highlighting is the client's decision.
     """
     changes = []
     for rep in reports:
@@ -391,26 +395,31 @@ def collect_changes(reports):
                     "category": rep["category"],
                     "original": bl,
                     "suggested": cl,
-                    "html": _diff_html(bl, cl),
                 })
     return changes
 
 
-def _diff_html(before, after):
-    """Inline highlighted diff between two lines (safe HTML)."""
-    sm = difflib.SequenceMatcher(None, before, after)
+def build_content(job, apply_cleanup=False, kind=None):
+    """Whole document body as ONE plain text string (API output).
+
+    Every page's final text joined with a blank line — no metadata banner,
+    no ``--- Page N ---`` markers, no HTML tags. This is what a caller that
+    just wants the text (e.g. the Node backend feeding the grammar engine)
+    consumes. ``apply_cleanup=True`` returns the cleaned variant.
+
+    ``kind`` (or ``job['kind']``) picks the join: PDF page texts are joined
+    with a blank line (page = block); DOCX page texts are chunked paragraph
+    runs and join with a single newline (paragraph = line).
+    """
+    kind = (kind or job.get("kind") or "pdf").lower()
+    sep = "\n" if kind == "docx" else "\n\n"
     parts = []
-    for tag, i1, i2, j1, j2 in sm.get_opcodes():
-        if tag == "equal":
-            parts.append(_esc(before[i1:i2]))
-        elif tag == "delete":
-            parts.append(f'<del style="background:#fdd">{_esc(before[i1:i2])}</del>')
-        elif tag == "insert":
-            parts.append(f'<mark style="background:#ffeb3b">{_esc(after[j1:j2])}</mark>')
-        else:  # replace
-            parts.append(f'<del style="background:#fdd">{_esc(before[i1:i2])}</del>')
-            parts.append(f'<mark style="background:#c8f7c5">{_esc(after[j1:j2])}</mark>')
-    return "".join(parts)
+    for pg, rep in zip(job["pages"], job["reports"]):
+        if apply_cleanup and rep.get("clean") is not None:
+            parts.append(rep["clean"])
+        else:
+            parts.append(pg["text"])
+    return sep.join(parts)
 
 
 def build_meta_header(pdf_path, reports, counts, metadata):
@@ -497,6 +506,7 @@ def process_pdf_bytes(data, detector, filename="upload.pdf", log=lambda m: None)
 
     return {
         "filename": filename,
+        "kind": "pdf",
         "reports": reports,
         "counts": counts,
         "metadata": {},
@@ -505,14 +515,102 @@ def process_pdf_bytes(data, detector, filename="upload.pdf", log=lambda m: None)
     }
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  DOCX input — same pipeline, different container
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Paragraphs per detection/conversion chunk. The detector is a Markov model
+# over Myanmar codepoint sequences: it needs a run of text to be confident,
+# but a whole 300-page novel in one string would slow the per-chunk Rabbit
+# pass for no gain. 80 paragraphs ≈ one book page — same granularity the PDF
+# path detects at.
+_DOCX_CHUNK_PARAGRAPHS = 80
+
+
+def _chunk_paragraphs(paragraphs, per_chunk=_DOCX_CHUNK_PARAGRAPHS):
+    """Group paragraphs into detection chunks (list[str] -> list[str])."""
+    if not paragraphs:
+        return [""]
+    return ["\n".join(paragraphs[i:i + per_chunk])
+            for i in range(0, len(paragraphs), per_chunk)]
+
+
+def process_docx_bytes(data, detector, filename="upload.docx", log=lambda m: None):
+    """Run the SAME detect -> Rabbit -> cleanup pipeline on raw DOCX bytes.
+
+    The docx container only stores text, so extraction is trivial (see
+    :mod:`docx_extract`); the ENCODING work is what the browser could never
+    do and the reason .docx is parsed server-side. No layout is kept — DOCX
+    finalize supports txt output only.
+    """
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+        tmp.write(data)
+        tmp_path = tmp.name
+    try:
+        paragraphs = extract_docx_paragraphs(tmp_path)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+    reports = []
+    pages = []
+    counts = {"ZAWGYI": 0, "UNICODE": 0, "UNKNOWN": 0}
+    for idx, chunk in enumerate(_chunk_paragraphs(paragraphs)):
+        category, prob = detector.detect(chunk)
+        cat = _norm_category(category)
+
+        if cat == "ZAWGYI":
+            base = Rabbit.zg2uni(chunk)
+        else:
+            base = chunk  # UNICODE kept, UNKNOWN passed through
+
+        clean = None if cat == "UNKNOWN" else cleanup_text(base)
+        reports.append({"page": idx + 1, "category": cat,
+                        "prob": _safe_prob(prob), "base": base, "clean": clean})
+        pages.append({"text": base})
+        counts[cat] = counts.get(cat, 0) + 1
+
+    return {
+        "filename": filename,
+        "kind": "docx",
+        "reports": reports,
+        "counts": counts,
+        "metadata": {},
+        "changes": collect_changes(reports),
+        "pages": pages,
+    }
+
+
+def process_bytes(data, kind, detector, filename=None, log=lambda m: None):
+    """One entry for both server-side formats: kind = 'pdf' | 'docx'."""
+    kind = (kind or "").lower()
+    if kind == "pdf":
+        return process_pdf_bytes(data, detector,
+                                 filename=filename or "upload.pdf", log=log)
+    if kind == "docx":
+        return process_docx_bytes(data, detector,
+                                  filename=filename or "upload.docx", log=log)
+    raise ValueError(f"Unsupported kind: {kind!r} (use 'pdf' or 'docx')")
+
+
 def build_final_pages(job, apply_cleanup):
     """Assemble final render pages from a stored job (API finalize).
 
     Lines already hold the CONVERTED base text — cleanup is applied per line
     when approved; Rabbit is never re-run (no double conversion).
+
+    DOCX jobs carry no layout (``lines``/``wh``/``has_img`` absent) — those
+    pages render txt-only; api.py refuses layout formats for them.
     """
     out = []
     for pg, rep in zip(job["pages"], job["reports"]):
+        if "lines" not in pg:
+            out.append({"text": rep["clean"]
+                        if (apply_cleanup and rep.get("clean") is not None)
+                        else pg["text"]})
+            continue
         if apply_cleanup and rep["clean"] is not None:
             lines = [(x, y, s, cleanup_text(t)) for (x, y, s, t) in pg["lines"]]
             text = rep["clean"]

@@ -1,32 +1,32 @@
 // FILE: _file/pythonPdf.js
 //
-// The PDF parser slot in parser.js, backed by the PRASER Python extractor.
+// The Node shell around the PRASER Python extractor — .pdf AND .docx.
 //
-// Why PDFs do not get parsed in the browser
-// ─────────────────────────────────────────
-// A .txt or .docx stores text AS TEXT. A PDF stores GLYPH IDS plus a font, and
-// the text you get back depends on being able to resolve those ids. Measured on
+// Why these formats do not get parsed in the browser
+// ─────────────────────────────────────────────────
+// A .txt or .docx stores text AS TEXT, a PDF stores GLYPH IDS plus a font —
+// but for Burmese documents BOTH carry the same problem: the stored code
+// points are Zawgyi/imposter-encoded, and a browser extractor (pdf.js,
+// mammoth.js) hands them back verbatim. Only the Python side does the
+// encoding work (embedded-TTF cmap resolution, model-first decoding,
+// Zawgyi detection + Rabbit conversion). Measured on
 // upload/input/pdf/test.pdf (764 pages):
 //
 //   pdf.js  → "Chapter 701: ေကာငး့ကငးမီ့လြ္ဵတိုကးပျဲ"   p(zawgyi) = 1.000
 //   PRASER  → "Chapter 701: ကောင်းကင်မီးလျှံတိုက်ပွဲ"   p(zawgyi) = 0.000
 //
-// The PDF's ToUnicode CMaps point at Zawgyi/imposter lookalikes, so pdf.js
-// returns confident garbage. Running Rabbit over that output only half-converts
-// it. The embedded TTF cmap is the only authority, and reading it is what the
-// Python side does (pick_embedded_font / parse_ttf_cmap).
+// Which is why every FILE upload is parsed server-side now; only a plain
+// text submission (no file) travels as request-carried text.
 //
 // Cost: the whole 764-page book extracts in ~2s using nothing but the Python
 // standard library (re, zlib, struct, unicodedata, zipfile) — there is no
 // dependency to install and no Flask process to keep alive, so this shells out
-// to the same CLI you run by hand.
+// to the same CLI you run by hand. (.doc is the exception: legacy binary
+// format, handled by antiword/catdoc in parser.js.)
 
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import fs from 'fs/promises';
-import os from 'os';
 import path from 'path';
-import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 
 const execFileAsync = promisify(execFile);
@@ -39,7 +39,7 @@ const ENTRY = path.join('module', 'prase.py');
 const DEFAULTS = {
   pythonBin: process.env.PYTHON_BIN || 'python3',
   // 764 pages ≈ 2s. A minute is already absurdly generous; the point is that a
-  // malformed PDF can never pin a worker forever.
+  // malformed file can never pin a worker forever.
   timeoutMs: Number.parseInt(process.env.PRASER_TIMEOUT_MS || '60000', 10),
   // 'no' = never silently rewrite the user's text. The imposter/reorder cleanup
   // is a decision the user makes, not something we apply behind their back.
@@ -48,102 +48,67 @@ const DEFAULTS = {
 };
 
 /**
- * Strip the metadata banner render_texts() writes at the top of the .txt.
+ * Build a parser function around the PRASER CLI (module/prase.py).
+ * The CLI auto-detects pdf vs docx by the input extension; only the error
+ * labels differ between the two shells.
  *
- * It carries the absolute source path, which must never reach the browser, but
- * it also carries the per-encoding page counts — worth keeping as metadata.
- *
- *   # Source: /abs/path/test.pdf
- *   # Pages: 764
- *   # Detection: 761 Zawgyi, 0 Unicode, 3 unknown
- *   ##################################################
+ * @param {string} label - human label for error messages ('PDF' | 'DOCX')
  */
-function splitBanner(raw) {
-  const meta = { pages: null, zawgyi: null, unicode: null, unknown: null };
-  const lines = raw.split('\n');
-  let i = 0;
-  for (; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^#{10,}\s*$/.test(line)) {
-      i++;
-      break;
-    }
-    if (!line.startsWith('#')) break; // no banner at all
-    const pages = line.match(/^#\s*Pages:\s*(\d+)/i);
-    if (pages) meta.pages = Number(pages[1]);
-    const det = line.match(
-      /^#\s*Detection:\s*(\d+)\s+Zawgyi,\s*(\d+)\s+Unicode,\s*(\d+)\s+unknown/i,
-    );
-    if (det) {
-      meta.zawgyi = Number(det[1]);
-      meta.unicode = Number(det[2]);
-      meta.unknown = Number(det[3]);
-    }
-  }
-  while (i < lines.length && lines[i].trim() === '') i++;
-  return { text: lines.slice(i).join('\n'), meta };
-}
+function createPraserFileParser(label) {
+  return function (opts = {}) {
+    const cfg = { ...DEFAULTS, ...opts };
 
-/**
- * Build the pdfParser function that parser.js expects.
- *
- * @returns {(filePath: string) => Promise<string>} extracted Unicode text
- */
-export function createPythonPdfParser(opts = {}) {
-  const cfg = { ...DEFAULTS, ...opts };
-
-  return async function parsePdfWithPython(filePath) {
-    const outPath = path.join(
-      os.tmpdir(),
-      `praser_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.txt`,
-    );
-
-    try {
-      await execFileAsync(
-        cfg.pythonBin,
-        [ENTRY, filePath, outPath, '--cleanup', cfg.cleanup],
-        {
-          cwd: PRASER_PY, // prase.py resolves its model/fonts relative to itself
-          timeout: cfg.timeoutMs,
-          maxBuffer: cfg.maxBuffer,
-          killSignal: 'SIGKILL',
-          windowsHide: true,
-        },
-      );
-    } catch (err) {
-      if (err.killed || err.signal === 'SIGKILL') {
-        throw new Error(
-          `PDF extraction timed out after ${cfg.timeoutMs}ms — the file is too large or malformed`,
-          { cause: err },
+    return async function parseWithPraser(filePath) {
+      // --content: the extractor prints ONLY the document body to stdout —
+      // one plain text, no metadata banner, no page markers, no HTML tags.
+      // Progress logging goes to stderr (surfaced only on failure).
+      let stdout;
+      try {
+        const { stdout: out } = await execFileAsync(
+          cfg.pythonBin,
+          [ENTRY, filePath, '--content', '--cleanup', cfg.cleanup],
+          {
+            cwd: PRASER_PY, // prase.py resolves its model/fonts relative to itself
+            timeout: cfg.timeoutMs,
+            maxBuffer: cfg.maxBuffer,
+            killSignal: 'SIGKILL',
+            windowsHide: true,
+          },
         );
+        stdout = out;
+      } catch (err) {
+        if (err.killed || err.signal === 'SIGKILL') {
+          throw new Error(
+            `${label} extraction timed out after ${cfg.timeoutMs}ms — the file is too large or malformed`,
+            { cause: err },
+          );
+        }
+        if (err.code === 'ENOENT') {
+          throw new Error(
+            `${label} extractor unavailable: '${cfg.pythonBin}' not found on PATH`,
+            { cause: err },
+          );
+        }
+        const detail = (err.stderr || err.message || '').toString().trim().split('\n').pop();
+        throw new Error(`${label} extraction failed: ${detail}`, { cause: err });
       }
-      if (err.code === 'ENOENT') {
-        throw new Error(
-          `PDF extractor unavailable: '${cfg.pythonBin}' not found on PATH`,
-          { cause: err },
-        );
+
+      const text = stdout ?? '';
+      if (!text.trim()) {
+        const hint =
+          label === 'PDF'
+            ? ' It is most likely a scan — image-only pages carry no text to extract.'
+            : '';
+        throw new Error(`No text found in this ${label}.${hint}`);
       }
-      const detail = (err.stderr || err.message || '').toString().trim().split('\n').pop();
-      throw new Error(`PDF extraction failed: ${detail}`, { cause: err });
-    }
 
-    let raw;
-    try {
-      raw = await fs.readFile(outPath, 'utf8');
-    } catch {
-      throw new Error('PDF extraction produced no output');
-    } finally {
-      await fs.unlink(outPath).catch(() => {});
-    }
-
-    const { text, meta } = splitBanner(raw);
-    if (!text.trim()) {
-      throw new Error(
-        'No text found in this PDF. It is most likely a scan — image-only pages carry no text to extract.',
-      );
-    }
-
-    parsePdfWithPython.lastMeta = meta; // observability, not contract
-    return text;
+      return text;
+    };
   };
 }
+
+/** .pdf → PRASER (embedded-cmap / model-first extraction + Rabbit). */
+export const createPythonPdfParser = createPraserFileParser('PDF');
+
+/** .docx → PRASER (same detect → Rabbit → cleanup pipeline, zip container). */
+export const createPythonDocxParser = createPraserFileParser('DOCX');

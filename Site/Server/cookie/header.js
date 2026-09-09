@@ -1,4 +1,16 @@
+import { sessionBypassEnabled } from './devbypass.js';
+
 export function headerCheck(req, res, next) {
+  // DEV_BYPASS_SESSION: open the gate for automated clients (curl) in dev.
+  // Trusted-IP resolution still runs — everything downstream expects it.
+  if (sessionBypassEnabled()) {
+    req.trustedIp =
+      req.headers['cf-connecting-ip'] ||
+      req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+      req.socket?.remoteAddress ||
+      'unknown';
+    return next();
+  }
   const userAgent = req.headers['user-agent'];
   if (!userAgent || typeof userAgent !== 'string' || userAgent.length < 5) {
     return res
