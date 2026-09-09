@@ -11,15 +11,17 @@ stubbed or unwired; the contracts below are what to trust. Read before grepping 
 
 ## Corrections — wrong assumptions agents make
 `````
-This file here isnt intended to serve 
+This file here isnt intended to serve
 as system description and technical 
-explanations . We all know what
-everyone else does.so this is a file  
+explanations. We all know what
+everyone else does.so this is a file
 to describe everyone else might assume
- wrongly without reading carefully , considering base  on  typical file name ,workflow and any other  
+wrongly without reading carefully 
+considering base  on  typical file name ,workflow and any other  
 missmatch case for people who  
 will touch  code after you ur 
-allow to delete if the  missmatch cases  doesn't  not exist  anymore 
+allow to delete if the missmatch cases
+doesn't  not exist  anymore 
 Append the content by only writing 
 below this line
 
