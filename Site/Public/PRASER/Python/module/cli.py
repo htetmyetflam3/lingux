@@ -1,0 +1,121 @@
+"""Command-line interface for the Burmese PDF extraction pipeline.
+
+    python module/prase.py <input.pdf> [output_path]
+    python module/prase.py input.pdf out.txt --cleanup ask   # (default) y/N once
+    python module/prase.py input.pdf out.docx --cleanup yes  # always apply
+    python module/prase.py input.pdf out.pdf  --cleanup no   # never apply
+    python module/prase.py --serve [--host 0.0.0.0] [--port 5000]
+"""
+
+import os
+import sys
+import argparse
+
+from paths import DEFAULT_OUTPUT_DIR
+from pipeline import (
+    load_detector,
+    process_pdf_stream,
+    render_texts,
+)
+
+
+def parse_args():
+    p = argparse.ArgumentParser(
+        description="Extract Burmese text from PDF (CID fonts), detect Zawgyi/Unicode "
+                    "per page, convert Zawgyi, and optionally run the imposter+reorder "
+                    "cleanup step. Runs as CLI or as a Flask API (--serve).")
+    p.add_argument("pdf", nargs="?", help="Input PDF file path")
+    p.add_argument("out", nargs="?", default="", help="Output file/dir path (ext .txt/.docx/.pdf)")
+    p.add_argument("--cleanup", choices=["ask", "yes", "no"], default="ask",
+                   help="Imposter+reorder cleanup: 'ask' (default, y/N once before "
+                        "conversion), 'yes' always apply, 'no' never apply.")
+    p.add_argument("--serve", action="store_true", help="Run as Flask HTTP API instead of CLI")
+    p.add_argument("--host", default="0.0.0.0", help="API bind host (default 0.0.0.0)")
+    p.add_argument("--port", type=int, default=5000, help="API bind port (default 5000)")
+    return p.parse_args()
+
+
+def ask_cleanup_once():
+    """Single global y/N prompt (Yes = apply, No = skip). Default No."""
+    try:
+        ans = input("\n[?] Apply imposter cleanup + mark reorder? [y/N]: ").strip().lower()
+    except EOFError:
+        return False
+    return ans in ("y", "yes")
+
+
+def run_cli(args):
+    pdf_path = args.pdf
+    if not pdf_path:
+        print("Usage: python module/prase.py <input.pdf> [output_path] [--cleanup ask|yes|no]")
+        sys.exit(1)
+    if not os.path.exists(pdf_path):
+        print(f"[-] Input not found: {pdf_path}")
+        sys.exit(1)
+
+    detector = load_detector()
+
+    # Resolve the output path FIRST: DOCX output needs the per-line layout
+    # (x/y/font-size + MediaBox) carried through the streaming pass.
+    out_arg = args.out or str(DEFAULT_OUTPUT_DIR)
+    out_ext = os.path.splitext(out_arg)[1].lower()
+    base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+    if out_ext in (".txt", ".docx", ".pdf"):
+        out_path = out_arg
+    else:
+        os.makedirs(out_arg, exist_ok=True)
+        out_path = os.path.join(out_arg, base_name + ".txt")
+        out_ext = ".txt"
+    out_dir = os.path.dirname(os.path.abspath(out_path))
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+    want_layout = out_ext == ".docx"
+
+    # --- The ONE global gate, asked BEFORE any page is touched ---
+    if args.cleanup == "ask":
+        apply_cleanup = ask_cleanup_once()
+    elif args.cleanup == "yes":
+        apply_cleanup = True
+    else:
+        apply_cleanup = False
+    print(f"[+] Cleanup step (imposter + reorder): {'APPLY' if apply_cleanup else 'SKIP'}")
+
+    # Single-pass streaming pipeline: extract -> detect -> convert -> cleanup,
+    # ONE PAGE AT A TIME. Only final page texts (+ layout for docx) are kept.
+    print("[+] Processing pages (single-pass stream)...")
+    metadata, npages, reports = process_pdf_stream(pdf_path, detector,
+                                                   apply_cleanup, log=print,
+                                                   want_layout=want_layout)
+    counts = {"ZAWGYI": 0, "UNICODE": 0, "UNKNOWN": 0}
+    pages = []
+    total_changes = 0
+    for rep in reports:
+        counts[rep["category"]] = counts.get(rep["category"], 0) + 1
+        pages.append({k: rep[k] for k in ("text", "lines", "wh", "has_img") if k in rep})
+        total_changes += rep["n_changes"]
+
+    print(f"[+] Detection done: {counts.get('ZAWGYI',0)} Zawgyi, "
+          f"{counts.get('UNICODE',0)} Unicode, {counts.get('UNKNOWN',0)} unknown")
+    if apply_cleanup and total_changes:
+        print(f"[+] Cleanup applied: {total_changes} line(s) reordered/cleaned")
+    elif total_changes:
+        print(f"[i] {total_changes} line(s) would have changed (cleanup skipped)")
+
+    render_texts(out_path, pages, counts, pdf_path)
+    print(f"[+] Saved: {out_path}")
+    print("[+] Done.")
+
+
+def main():
+    args = parse_args()
+    if args.serve:
+        from api import create_app
+        app = create_app()
+        print(f"[+] API listening on http://{args.host}:{args.port}  (endpoints: /health, /api/preview, /api/finalize)")
+        app.run(host=args.host, port=args.port, debug=False, threaded=True)
+    else:
+        run_cli(args)
+
+
+if __name__ == "__main__":
+    main()
