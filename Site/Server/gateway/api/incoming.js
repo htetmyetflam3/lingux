@@ -102,7 +102,15 @@ export function createIncomingRouter({ upload, pool, request }) {
         try {
           engine = await engineBridge.push({
             submitId: result.submitId,
+            filename: result.filename, // the FRONTEND-created name ({submitId}{ext})
             text: parsedText,
+            metadata: {
+              formId,
+              userId: req.userId, // validators, NOT optional (cookie chain)
+              sessionId: req.visitorHash,
+              source,
+              originalName: req.file.originalname,
+            },
           });
           const ext = req.file.originalname.split('.').pop().toLowerCase();
           if (ext === 'docx' && engine.text) {

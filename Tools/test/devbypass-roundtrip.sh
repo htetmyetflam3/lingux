@@ -88,6 +88,83 @@ process.exit(bad);
 EOF
 [ $? -ne 0 ] && fail=1
 
+echo "== 8) pre-receive validator: misaligned pushes must be REJECTED =="
+node - <<'EOF'
+import crypto from 'crypto';
+const EP = process.env.ENGINE_ENDPOINT || 'http://localhost:9000';
+const TEXT = 'မင်္ဂလာပါ ကမ္ဘာ။ နေကောင်းလား';
+const sha = crypto.createHash('sha256').update(TEXT, 'utf8').digest('hex');
+const bytes = Buffer.byteLength(TEXT, 'utf8');
+const submitId = crypto.randomUUID();
+const meta = {
+  formId: crypto.randomUUID(),
+  submitId,
+  filename: `${submitId}.pdf`,       // frontend-created shape
+  userId: 1,
+  sessionId: crypto.randomUUID(),    // session cookie identity
+  source: 'file',
+  originalName: 'validator-test.pdf',
+  textSha256: sha,
+  textBytes: bytes,
+};
+async function pre(over = {}) {
+  return fetch(`${EP}/metadata`, { method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...meta, ...over }) });
+}
+async function push(over = {}) {
+  return fetch(`${EP}/process`, { method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text: TEXT, hash: submitId, filename: meta.filename,
+      userId: meta.userId, sessionId: meta.sessionId, ...over }) });
+}
+let bad = 0;
+const check = (name, cond) => {
+  console.log(`${cond ? 'PASS' : 'FAIL'}  ${name}`);
+  if (!cond) bad = 1;
+};
+
+await pre();
+let r = await push();
+check('aligned push accepted', r.status === 200);
+
+r = await push();
+check('replay rejected (record burned)', r.status === 403);
+
+r = await push();
+check('push without pre-receive rejected', r.status === 403);
+
+await pre();
+r = await push({ sessionId: 'evil-session' });
+check('tampered sessionId rejected', r.status === 403);
+
+await pre();
+r = await push({ userId: 999 });
+check('tampered userId rejected', r.status === 403);
+
+await pre();
+r = await push({ filename: 'someone-else.txt' });
+check('swapped filename rejected', r.status === 403);
+
+await pre();
+r = await push({ text: TEXT.slice(0, -1) + 'ာ' });
+check('tampered text (sha mismatch) rejected', r.status === 403);
+
+r = await pre({ sessionId: undefined });
+check('pre-receive without sessionId refused', r.status === 400);
+
+r = await pre({ filename: 'random-name.pdf' });
+check('pre-receive with non-frontend filename refused', r.status === 400);
+
+await pre();
+r = await push();
+check('honest push after rejects still accepted', r.status === 200);
+
+process.exit(bad);
+EOF
+[ $? -ne 0 ] && fail=1
+
 echo
 [ "$fail" = 0 ] && echo "ALL PASS" || echo "SOME FAILURES"
 exit "$fail"

@@ -17,6 +17,15 @@ uses [Semantic Versioning](https://semver.org/).
 *Note* : **"previous changelog arent registerd here .so start registering fron 1.4.0"**
 
 
+## [1.7.0] - 2026-09-09
+### Added
+- Engine pre-receive gate (`POST /metadata` on the engine api-server): the Site registers the submission's validators BEFORE any text crosses — the FRONTEND-created filename (`{submitId}{ext}`), userId and session-cookie identity (validators, not optional), formId, expected text sha256 + byte length. Body-text pushes must align with the record or are rejected (403) and the record is burned: one record authorises at most one push (replay dies).
+- Rejection suite in `Tools/test/devbypass-roundtrip.sh` (10 cases: replay, no pre-receive, tampered sessionId/userId/filename/sha, malformed pre-receive).
+### Changed
+- Site bridge now sends `filename` + `{formId, userId, sessionId, source, originalName}` with every push; it refuses to push at all without the validators.
+### Fixed
+- Engine `readJson` decoded each TCP chunk separately — any multi-byte Burmese char split across a chunk boundary was silently corrupted in transit. The new sha/byte validators caught it on the 382 KB PDF push; buffers are now concatenated and decoded once.
+- eslint globals: `URL`.
 ## [1.6.0] - 2026-09-09
 ### Added
 - Site -> Private connection: parsed file text is pushed to the Engine (`POST /process`) with `hash: submitId`; Engine outputs land as `segmented_{submitId}_*.txt` so the server id is the join key. Decision on record: text goes in the request **body**, never as a file (readFromApi/invokeWithHash are engine-internal; `srcPath` is same-machine-only; deployments are separate).

@@ -23,6 +23,7 @@ export default [
         clearTimeout: 'readonly',
         AbortController: 'readonly',
         AbortSignal: 'readonly',
+        URL: 'readonly',
         ReadableStream: 'readonly',
         CompressionStream: 'readonly',
         Response: 'readonly',

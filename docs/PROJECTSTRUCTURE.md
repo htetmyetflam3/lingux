@@ -71,6 +71,13 @@ stubbed or unwired; the contracts below are what to trust. Read before grepping.
   HTTP pull — not wired, do not assume it.
 - runMain() resets the engine workspace every call: only the newest engine
   result exists at a time; the Site reads it synchronously in the request.
+- Engine push is a two-step validator, no chaining: metadata pre-receive
+  first (engine `POST /metadata`), then the text (`POST /process`). The
+  filename is the FRONTEND-created `{submitId}{ext}`; userId + session
+  cookie identity are validators, not optional. A push that misses or
+  misaligns any validator (filename, userId, sessionId, textSha256,
+  textBytes) is rejected 403 and the record is burned — one pre-receive
+  authorises at most one push. The Python PRASER never calls the engine.
 
 ---
 
