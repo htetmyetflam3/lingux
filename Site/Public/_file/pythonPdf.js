@@ -26,7 +26,10 @@
 
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import fs from 'fs/promises';
+import os from 'os';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 
 const execFileAsync = promisify(execFile);
@@ -112,3 +115,44 @@ export const createPythonPdfParser = createPraserFileParser('PDF');
 
 /** .docx → PRASER (same detect → Rabbit → cleanup pipeline, zip container). */
 export const createPythonDocxParser = createPraserFileParser('DOCX');
+
+/**
+ * Result rewrite: plain text → .docx via the PRASER CLI
+ * (`prase.py <in.txt> <out.docx>` — write_docx_plain, one paragraph per
+ * line). This is how a .docx upload is delivered after the Engine round
+ * trip: sent to the engine as txt, re-wrapped as docx on the way back.
+ *
+ * @returns {(text: string, outPath: string) => Promise<string>} outPath
+ */
+export function createPraserDocxRenderer() {
+  return function (opts = {}) {
+    const cfg = { ...DEFAULTS, ...opts };
+
+    return async function renderDocxFromText(text, outPath) {
+      const tmpTxt = path.join(
+        os.tmpdir(),
+        `praser_result_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.txt`,
+      );
+      await fs.writeFile(tmpTxt, text, 'utf8');
+      try {
+        await execFileAsync(
+          cfg.pythonBin,
+          [ENTRY, tmpTxt, outPath],
+          {
+            cwd: PRASER_PY,
+            timeout: cfg.timeoutMs,
+            maxBuffer: cfg.maxBuffer,
+            killSignal: 'SIGKILL',
+            windowsHide: true,
+          },
+        );
+      } catch (err) {
+        const detail = (err.stderr || err.message || '').toString().trim().split('\n').pop();
+        throw new Error(`DOCX rewrite failed: ${detail}`, { cause: err });
+      } finally {
+        await fs.unlink(tmpTxt).catch(() => {});
+      }
+      return outPath;
+    };
+  };
+}

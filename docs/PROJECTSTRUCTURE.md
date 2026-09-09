@@ -49,6 +49,28 @@ stubbed or unwired; the contracts below are what to trust. Read before grepping.
   there — do not copy or commit plaintext data.
 - `.env` is a placeholder — read `AGENT_NOTE` at its top. No security essays.
 - Some seams are unwired **on purpose**. Ask before completing one.
+- PRASER API output shape: preview carries `content` (whole body, one plain
+  text, no banner/markers/HTML); `changes` are plain original/suggested pairs
+  (no `html` field); `/api/content` returns one full text; docx jobs finalize
+  txt-only. The Node side consumes the CLI `--content` mode (same shape).
+- DEV_BYPASS_SESSION was written but never imported — it is wired into the
+  gates now (headerCheck, cookieGenerator, cookieDBCheck, session store, and
+  the raw-pull disk fallback). Flag off = gates enforced; with the flag off
+  the global cookieGenerator still needs the DB (500 without it) — pre-existing.
+- Site/ files carried doubled repo-relative imports (`../../Site/Public/...`,
+  `../../Private/...`) from the restructure; fixed to the real relative
+  paths. Do not reintroduce root-style paths inside Site/.
+- Site -> Engine transport is the request BODY (`{text, hash}` to the engine
+  api-server), not a file. readFromApi/invokeWithHash are the ENGINE's
+  internal read path (engine cwd); `srcPath` is same-machine-only; the
+  deployments are separate. `hash` = the Site's submitId (uuid passes
+  hashKind) -> outputs land as `segmented_{submitId}_*.txt`.
+- The engine api-server must run with the repo root as cwd (OutputFile()/
+  DataFile() resolve against cwd); the Site reads results back via the
+  same-repo invokeWithHash import. Cross-deployment that read becomes an
+  HTTP pull — not wired, do not assume it.
+- runMain() resets the engine workspace every call: only the newest engine
+  result exists at a time; the Site reads it synchronously in the request.
 
 ---
 
@@ -58,7 +80,7 @@ stubbed or unwired; the contracts below are what to trust. Read before grepping.
 |---|---|---|
 | Site | `Site/Server/gateway/api/` | `POST /api/submit` → `{formId, submitId, text, status}` · `POST/GET /api/result` → look up by formId + userId · `POST /api/process` (X-API-Key) pushes the submission metadata — **fileName included** — plus a pull URL to `FSM_ENDPOINT` · `GET /api/hidden/raw/:submitId` (X-API-Key) streams the saved `.txt` |
 | Engine read | `Private/Engine/Ginit.js` (Module A) + `Private/Bridge/readFromApi.js` (Module B) | caller hands a hash → A builds the `segmented_{hash}_*.txt` name → B streams the file (256 KB chunks) and returns the text |
-| Engine process | `Private/Syllable/api-server.js` | `POST /process` `{text \| srcPath, flags}` → Engine reads the input through its own stream reader, runs the pipeline, writes only in its own workspace → `{hash, syllable positions}` |
+| Engine process | `Private/Syllable/api-server.js` | `POST /process` `{text \| srcPath, hash?, flags}` → Engine reads the input through its own stream reader, runs the pipeline, writes only in its own workspace → `{hash, syllable positions}`. `hash` (optional) = caller id (uuid passes `hashKind`) → outputs named `segmented_{hash}_*` |
 | Python PRASER | `Site/Public/PRASER/Python/module/api.py` | Flask: `GET /health` · `POST /api/preview` multipart pdf/docx → `job_id` + `content` (whole body, plain) + cleanup changes · `GET/POST /api/content` `job_id, apply` → one full text · `POST /api/finalize` `job_id, apply, fmt` → download (docx jobs: txt only). Preview/finalize is the human-approval flow. |
 
 ## Request path (Site)
@@ -85,9 +107,12 @@ POST /api/submit
 - `createParser()` accepts a `pdfParser` injection; nothing injects it yet, so
   a `.pdf` without client text throws. The PRASER Python extractor is the
   intended filler.
-- `openFsmConnection()` (`gateway/generator/string.js`) is a stub: it receives
-  the full metadata (formId, submitId, userId, sessionId, source,
-  originalPath), returns `{connected:true}`, never reaches the Engine.
+- The real Site -> Engine connection is `generator/engine.js`
+  (`createEngineBridge`), wired into `incoming.js` after the raw save —
+  file submissions only. `openFsmConnection()` (`generator/string.js`) is
+  still the legacy Encoding-flow stub; do not confuse the two.
+- Engine side: `invokeWithHash` validates shapes via `hashKind` (done);
+  cross-deployment result pull over HTTP is NOT implemented.
 - Engine side: `invokeWithHash` must validate the hash name. Server side: must
   pass the saved `.txt` filename to the Engine. Neither is implemented.
 - `incoming.js` no longer auto-pushes to FSM ("Playground no longer pushes to
@@ -128,6 +153,7 @@ deployments.
 | `DEV_BYPASS_SESSION` | opens the cookie/session gates for curl-style clients; MemoryStore sessions, raw-pull disk fallback. Hard-off when `NODE_ENV=production` |
 | `PYTHON_BIN`, `PRASER_TIMEOUT_MS`, `PRASER_CLEANUP` | the PRASER shell's python binary / exec timeout / cleanup default |
 | `FSM_ENDPOINT`, `FSM_KEY` | `hidden.js` push target + key |
+| `ENGINE_ENDPOINT`, `ENGINE_KEY`, `ENGINE_TIMEOUT_MS` | the engine api-server the Site pushes parsed file text to (key falls back to `FSM_KEY`) |
 ----
 
 ## Note

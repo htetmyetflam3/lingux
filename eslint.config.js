@@ -22,6 +22,7 @@ export default [
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
         AbortController: 'readonly',
+        AbortSignal: 'readonly',
         ReadableStream: 'readonly',
         CompressionStream: 'readonly',
         Response: 'readonly',

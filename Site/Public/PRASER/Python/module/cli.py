@@ -103,6 +103,25 @@ def run_cli(args):
         os.makedirs(out_dir, exist_ok=True)
     want_layout = out_ext == ".docx"
 
+    # DOCX input runs the same pipeline but keeps no layout: txt output only.
+    if pdf_path.lower().endswith(".docx") and out_ext != ".txt":
+        print("[-] DOCX input supports .txt output only (no layout is kept)")
+        sys.exit(1)
+
+    # Plain .txt input = the RESULT-REWRITE path: text (e.g. the Engine's
+    # processed output) -> .docx for delivery. No extraction, no detection.
+    if pdf_path.lower().endswith(".txt"):
+        if out_ext != ".docx":
+            print("[-] .txt input supports .docx output only (use out.docx)")
+            sys.exit(1)
+        from render import write_docx_plain
+        with open(pdf_path, "r", encoding="utf-8") as fh:
+            body = fh.read()
+        write_docx_plain(out_path, body)
+        print(f"[+] Saved: {out_path}")
+        print("[+] Done.")
+        return
+
     # --- The ONE global gate, asked BEFORE any page is touched ---
     if args.cleanup == "ask":
         apply_cleanup = ask_cleanup_once()

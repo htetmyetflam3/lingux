@@ -68,6 +68,26 @@ check "raw pull -> 200" 200 "$code"
 code=$(curl -s -o /dev/null "$BASE/api/hidden/raw/$submit" -H "X-API-Key: wrong" -w '%{http_code}')
 check "bad key -> 403" 403 "$code"
 
+echo "== 7) Site -> Private engine bridge (file submissions) =="
+# Requires the engine api-server running: PORT=9000 node Private/Syllable/api-server.js
+node - <<'EOF'
+import fs from 'fs';
+let bad = 0;
+for (const [name, f] of [['PDF', '/tmp/rt_b2.json'], ['DOCX', '/tmp/rt_b3.json']]) {
+  const d = JSON.parse(fs.readFileSync(f, 'utf8'));
+  const e = d.engine || {};
+  if (!e.connected) { console.log(`FAIL  ${name} engine push (${e.error || 'no engine block'})`); bad = 1; continue; }
+  if (e.engineHash !== d.submitId) { console.log(`FAIL  ${name} engineHash != submitId`); bad = 1; }
+  else console.log(`PASS  ${name} engine push, hash==submitId (${e.syllableCount} lines)`);
+  if (name === 'DOCX') {
+    if (e.docxPath && fs.existsSync(e.docxPath)) console.log(`PASS  DOCX result rewritten -> ${e.docxPath}`);
+    else { console.log('FAIL  DOCX result not rewritten'); bad = 1; }
+  }
+}
+process.exit(bad);
+EOF
+[ $? -ne 0 ] && fail=1
+
 echo
 [ "$fail" = 0 ] && echo "ALL PASS" || echo "SOME FAILURES"
 exit "$fail"

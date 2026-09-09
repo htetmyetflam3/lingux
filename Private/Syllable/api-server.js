@@ -16,6 +16,7 @@
      {
        text:    "…raw text…",     // full text in one body
        srcPath: "…optional path…",// text already on the server machine
+       hash:    "…caller id…",    // optional — names outputs segmented_{hash}_*
        writeSyllable: true,       // WRITE_SYLLABLE
        segmentedMode: "single",   // SEGMENTED_MODE
        debugMode:     false       // DEBUG_MODE
@@ -134,14 +135,21 @@ async function handleRequest(req, res) {
 		}
 
 		try {
-			/* Same flag names the CLI uses — one row per flag, no registry. */
+			/* Same flag names the CLI uses — one row per flag, no registry.
+			   `hash` (optional) is the CALLER's id (server branch: submitId).
+			   runMain() validates the shape (engine ts / uuid / 32-hex session)
+			   and names the outputs segmented_{hash}_* — so the caller reads
+			   them back with invokeWithHash(its own id). Forwarded ONLY when
+			   present; without it the engine mints its own timestamp hash. */
+			const pipeOpts = { srcPath: input };
+			if (rest.hash !== undefined) pipeOpts.hash = rest.hash;
 			configure({
 				srcPath: input,
 				writeSyllable: rest.writeSyllable,
 				segmentedMode: rest.segmentedMode,
 				debugMode: rest.debugMode,
 			});
-			const results = await grammarPipeline({ srcPath: input });
+			const results = await grammarPipeline(pipeOpts);
 			/* Public API returns POSITIONS, not ready-made segmented text.
 			   The caller writes the segmentation itself from its own input. */
 			const hash = results[0]?.hash ?? null;

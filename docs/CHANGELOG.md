@@ -17,6 +17,19 @@ uses [Semantic Versioning](https://semver.org/).
 *Note* : **"previous changelog arent registerd here .so start registering fron 1.4.0"**
 
 
+## [1.6.0] - 2026-09-09
+### Added
+- Site -> Private connection: parsed file text is pushed to the Engine (`POST /process`) with `hash: submitId`; Engine outputs land as `segmented_{submitId}_*.txt` so the server id is the join key. Decision on record: text goes in the request **body**, never as a file (readFromApi/invokeWithHash are engine-internal; `srcPath` is same-machine-only; deployments are separate).
+- Engine result read-back via `invokeWithHash` (Module A -> readFromApi Module B) and, for .docx uploads, the result is re-written as `.output/docx/{submitId}.docx` (PRASER `write_docx_plain`, CLI accepts `.txt` input for the rewrite).
+- `Tools/test/devbypass-roundtrip.sh` now covers the engine bridge (hash==submitId, docx rewrite).
+### Changed
+- Engine api-server forwards the caller's `hash` into the pipeline (previously always minted its own timestamp hash).
+- /api/submit responses gain `{connected, engineHash, syllableCount[, docxPath]}`; engine failure degrades the upload, never blocks it.
+### Fixed
+- Engine could not boot in this repo: `mapper/idmapper.js` missing (restored from its reference copy), `DATA_DIR` still pointed at the private layout (now `Private/Engine/_knowledge/json`, per reference watch-out #1).
+- eslint globals: `AbortSignal`.
+
+
 ## [1.5.0] - 2026-09-09
 ### Added
 - .docx uploads parse server-side through the PRASER pipeline (detect → Rabbit → cleanup), same as .pdf — browser extraction could never fix the encoding.
