@@ -4,8 +4,6 @@
 
 This file records **logic and owner corrections**, not code state — code may be
 stubbed or unwired; the contracts below are what to trust. Read before grepping scroll to the button and read the  note twice  after that feel free to include any lines inside this file as part of commit.
-**This file here isnt intended and serve as system description and technical explanations . We all know what everyone else knew so this is a file  to describe everyone else  may assume wrongly by thinking typical naming,workflow and missmatch for people who  will touch  code ** 
-*ur allow to delete the missmatch cases that  doesn't  not exist  anymore * 
 ---
 
 
@@ -13,8 +11,14 @@ stubbed or unwired; the contracts below are what to trust. Read before grepping 
 
 ## Corrections — wrong assumptions agents make
 `````
-*Append the content by only writing 
-below this line*
+This file here isnt intended to serve 
+as system description and technical explanations . 
+We all know what everyone else knew.
+so this is a file  to describe
+everyone else  may assume wrongly without carefully reading and considering base  on  typical file name ,workflow and missmatch case for people who  will touch  code after you 
+ur allow to delete the missmatch cases that  doesn't  not exist  anymore 
+Append the content by only writing 
+below this line
 ````````
 
 
