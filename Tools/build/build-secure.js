@@ -30,7 +30,9 @@ import JavaScriptObfuscator from "javascript-obfuscator";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../..");
-const SECURE_MODULE = path.join(REPO_ROOT, "ENGINE", "Part", "Bridge", "secure.js");
+const SECURE_MODULE = fs.existsSync(path.join(REPO_ROOT, "Private", "Bridge", "secure.js"))
+	? path.join(REPO_ROOT, "Private", "Bridge", "secure.js")
+	: path.join(REPO_ROOT, "ENGINE", "Part", "Bridge", "secure.js");
 
 if (!fs.existsSync(SECURE_MODULE)) {
 	console.error(`secure.js not found: ${SECURE_MODULE}`);

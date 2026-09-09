@@ -57,8 +57,28 @@ const argValue = (name) => {
 	const i = process.argv.indexOf(name);
 	return i === -1 ? undefined : process.argv[i + 1];
 };
-// Default --src to the map dir, so a plain run rebuilds everything in place.
-const srcDir = argValue("--src") || MAP_DIR;
+const positionalSrc = process.argv[2] && !process.argv[2].startsWith("-") ? process.argv[2] : undefined;
+const rawSrc = argValue("--src") || positionalSrc;
+
+function resolveMapDir(raw) {
+	if (raw) {
+		const direct = path.resolve(process.cwd(), raw);
+		if (fs.existsSync(direct)) return direct;
+		const fromRepo = path.resolve(REPO_ROOT, raw);
+		if (fs.existsSync(fromRepo)) return fromRepo;
+		const fromHere = path.resolve(__dirname, raw);
+		if (fs.existsSync(fromHere)) return fromHere;
+		return direct;
+	}
+	// Candidate default locations:
+	const relativeMymap = path.resolve(__dirname, "../../mymap");
+	if (fs.existsSync(relativeMymap)) return relativeMymap;
+	const repoMymap = path.resolve(REPO_ROOT, "mymap");
+	if (fs.existsSync(repoMymap)) return repoMymap;
+	return MAP_DIR;
+}
+
+const srcDir = resolveMapDir(rawSrc);
 
 const run = (cmd, args, stage) => {
 	const res = spawnSync(cmd, args, { cwd: REPO_ROOT, stdio: "inherit" });

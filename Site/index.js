@@ -105,10 +105,8 @@ function buildClient() {
     return;
   }
   try {
-    console.log("[build] Running npm run build...");
-    // CORRECTED: the build tools (package.json, vite, Build/vite.config.js)
-    // live in Site/Public/STATIC — not at the project root.
-    execSync("npm run build", { cwd: STATIC_DIR, stdio: "inherit" });
+    console.log("[build] Running vite build...");
+    execSync("npx vite build --config Site/Public/STATIC/Build/vite.config.js", { cwd: projectRoot, stdio: "inherit" });
     console.log("[build] Build complete.");
   } catch (err) {
     console.error("[build] Build failed:", err.message);

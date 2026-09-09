@@ -13,6 +13,9 @@ import {
 import { parseJson } from '../helper/utilities.js';
 
 export async function runBuild(sourceData, outputDir = TreeFile()) {
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
   buildStart({ outputDir });
 
   try {

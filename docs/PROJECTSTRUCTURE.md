@@ -34,6 +34,8 @@ its mismatch no longer exists. Append new rows BELOW THE LINE. One fact per row.
 - Binaries are opened ONLY by the praser service — the Site forwards uploads unopened, the engine never touches them. All bomb caps live there (stream/member size+ratio, door caps). A cap hit refuses the document (400) — never a silent empty text.
 - The praser binds `127.0.0.1:5055` by default (5005 retired); non-loopback callers need `X-Praser-Key` (`PRASER_KEY`) — fail closed when unset.
 - `readFromApi` yields at `\n` boundaries (256 KB chunks) — never splits Burmese mid-line. Do not "fix" the stream. HTTP JSON bodies are buffer-concatenated and decoded ONCE (per-chunk decode corrupts multi-byte chars).
+- Map dir source for bundler may exist outside the repo (e.g. Tools/build relative ../../mymap/); bundler and bytecode scripts resolve it if passed or found.
+- Project bootstrapping pipeline entry is `initiate.js` (`npm run initiate` / `Tools/build/initiate.js`); builds map bytecode, verifies encrypted JSON, builds engine trees, boots praser on :5055, builds SPA, and launches Express.
 
 ## The four API surfaces
 

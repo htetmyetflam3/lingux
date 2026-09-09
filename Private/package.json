@@ -1,6 +1,6 @@
 {
 	"name": "FSMGR",
-	"version": "1.6.0",
+	"version": "1.7.0",
 	"description": "Myanmar (Burmese) rule-driven text processing and grammar engine. Syllables, single-tone units, are the foundation. POS classification and sentence-level analysis cascading through clauses down to individual words are all built on top of syllables.",
 	"author": "KaungMyatThu",
 	"license": "ISC",

@@ -17,10 +17,10 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 					duration: 3000,
 					position: { x: "right", y: "top" },
 					types: [
-						{ type: "info", background: "#0d6efd", icon: false },
-						{ type: "success", background: "#198754", icon: false },
-						{ type: "warning", background: "#ffc107", icon: false },
-						{ type: "error", background: "#dc3545", icon: false },
+						{ type: "info", background: "#2D5A52", icon: false },
+						{ type: "success", background: "#10B981", icon: false },
+						{ type: "warning", background: "#F4D03F", icon: false },
+						{ type: "error", background: "#EF4444", icon: false },
 					],
 				})
 			: {
@@ -29,6 +29,7 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 					warning: (m) => console.log("[Notyf warning]", m),
 					open: (o) => console.log("[Notyf info]", o.message || o),
 				};
+
 	const ui = {
 		textarea: document.getElementById("textInput"),
 		emptyState: document.getElementById("emptyState"),
@@ -45,7 +46,13 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		resultsPanel: document.getElementById("resultsPanel"),
 		resultsBadge: document.getElementById("resultStatusBadge"),
 		resultsContent: document.getElementById("resultsContent"),
+		processingOverlay: document.getElementById("processingOverlay"),
+		loadedFileBadge: document.getElementById("loadedFileBadge"),
+		loadedFileName: document.getElementById("loadedFileName"),
+		loadedFileSize: document.getElementById("loadedFileSize"),
+		removeFileBtn: document.getElementById("removeFileBtn"),
 	};
+
 	console.log("[main.js] DOM refs:", {
 		textarea: !!ui.textarea,
 		emptyState: !!ui.emptyState,
@@ -57,66 +64,91 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		checkBtn: !!ui.checkBtn,
 		overlay: !!ui.overlay,
 		uploadSection: !!ui.uploadSection,
+		processingOverlay: !!ui.processingOverlay,
+		loadedFileBadge: !!ui.loadedFileBadge,
 	});
+
 	if (!ui.textarea || !ui.emptyState || !ui.fileInput || !ui.browseButton) {
 		logger.log("ERROR:", "[main.js] Critical DOM elements missing. Aborting.");
 		return;
 	}
+
 	let currentFile = null;
 	// eslint-disable-next-line no-unused-vars -- intentional unused variable in test/experimental code
 	let extractedText = "";
 	let isSubmitting = false;
 	const pollTimer = null;
 	let dragDepth = 0;
+
 	function hasText() {
 		return ui.textarea.value.trim().length > 0;
 	}
+
 	function hasFile() {
 		return currentFile !== null;
 	}
+
 	function updateEmptyState() {
 		const showEmpty = !hasText() && !hasFile();
 		ui.emptyState.classList.toggle("d-none", !showEmpty);
 	}
+
 	function hideOverlay() {
 		dragDepth = 0;
-		ui.overlay.classList.add("d-none");
-		ui.uploadSection.classList.remove("drag-active");
+		if (ui.overlay) ui.overlay.classList.add("d-none");
+		if (ui.uploadSection) ui.uploadSection.classList.remove("drag-active");
 	}
+
 	function showOverlay() {
 		if (hasText() || hasFile()) {
 			hideOverlay();
 			return;
 		}
-		ui.overlay.classList.remove("d-none");
-		ui.uploadSection.classList.add("drag-active");
+		if (ui.overlay) ui.overlay.classList.remove("d-none");
+		if (ui.uploadSection) ui.uploadSection.classList.add("drag-active");
 	}
+
 	function updateCounters() {
 		const text = ui.textarea.value;
-		ui.charCount.textContent = `${text.length} chars`;
+		if (ui.charCount) ui.charCount.textContent = `${text.length} chars`;
 		const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-		ui.wordCount.textContent = `${words} words`;
+		if (ui.wordCount) ui.wordCount.textContent = `${words} words`;
 	}
+
+	function updateFileBadge() {
+		if (!ui.loadedFileBadge) return;
+		if (currentFile) {
+			if (ui.loadedFileName) ui.loadedFileName.textContent = currentFile.name;
+			if (ui.loadedFileSize) ui.loadedFileSize.textContent = `${(currentFile.size / 1024).toFixed(1)} KB`;
+			ui.loadedFileBadge.classList.remove("d-none");
+		} else {
+			ui.loadedFileBadge.classList.add("d-none");
+		}
+	}
+
 	function refreshUI() {
 		updateCounters();
 		updateEmptyState();
+		updateFileBadge();
 		if (hasText() || hasFile()) {
 			hideOverlay();
 		}
 	}
+
 	function hideResults() {
-		ui.resultsPanel.classList.add("d-none");
-		ui.resultsContent.innerHTML = "";
+		if (ui.resultsPanel) ui.resultsPanel.classList.add("d-none");
+		if (ui.resultsContent) ui.resultsContent.innerHTML = "";
 	}
+
 	async function copyToClipboard(text) {
 		try {
 			await navigator.clipboard.writeText(text);
 			notyf.success("Copied to clipboard!");
-		// eslint-disable-next-line no-unused-vars -- intentional unused variable in test/experimental code
 		} catch (err) {
 			notyf.error("Copy failed");
 		}
 	}
+
 	function esc(str) {
 		if (!str) return "";
 		return String(str).replace(
@@ -131,14 +163,19 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 				})[m],
 		);
 	}
+
 	function fileBadgeHtml(name) {
 		return `
-            <div class="d-flex align-items-center gap-2 p-2 mb-3 rounded bg-light border w-fit">
-                <i class="bi bi-file-earmark-text text-primary"></i>
-                <span class="text-truncate small fw-medium">${esc(name)}</span>
+            <div class="d-flex align-items-center gap-2 p-2 mb-3 rounded bg-light border w-fit" style="max-width: fit-content; display: inline-flex;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--coral)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+                <span class="text-truncate small fw-medium" style="font-weight: 600; color: var(--text-dark);">${esc(name)}</span>
             </div>
         `;
 	}
+
 	let extractBar = null;
 	function initProgressBar() {
 		if (typeof ProgressBar === "undefined") {
@@ -146,22 +183,27 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 			return;
 		}
 		if (extractBar) extractBar.destroy();
+		const container = document.querySelector("#progress-container");
+		if (!container) return;
 		extractBar = new ProgressBar.Line("#progress-container", {
 			strokeWidth: 3,
 			easing: "easeInOut",
 			duration: 300,
-			color: "#0d6efd",
-			trailColor: "#e9ecef",
+			color: "#E87A4F",
+			trailColor: "#EDE6D6",
 			trailWidth: 3,
-			svgStyle: { width: "100%", height: "6px", display: "block" },
+			svgStyle: { width: "100%", height: "6px", display: "block", borderRadius: "3px" },
 		});
 	}
+
 	function setProgress(v) {
 		if (extractBar) extractBar.set(v);
 	}
+
 	function animateProgress(v) {
 		if (extractBar) extractBar.animate(v);
 	}
+
 	if (!document.getElementById("progress-container") && ui.uploadSection) {
 		const wrap = document.createElement("div");
 		wrap.id = "progress-container";
@@ -169,6 +211,7 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		ui.uploadSection.appendChild(wrap);
 		initProgressBar();
 	}
+
 	function formatBurmeseText(text) {
 		if (!text) return "";
 		text = text.replace(/^\s*[\r\n]/gm, "");
@@ -179,15 +222,17 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		text = text.replace(/။(?!\s)/g, "။ ");
 		return text.trim();
 	}
+
 	function resizeTextarea() {
 		const isDesktop = window.innerWidth >= 992;
 		if (isDesktop) {
-			ui.textarea.style.height = window.innerHeight * 0.5 + "px";
+			ui.textarea.style.minHeight = Math.max(window.innerHeight * 0.35, 220) + "px";
 		} else {
 			const remaining = window.innerHeight - 250;
-			ui.textarea.style.height = Math.max(remaining, 150) + "px";
+			ui.textarea.style.minHeight = Math.max(remaining, 160) + "px";
 		}
 	}
+
 	const loadedScripts = {};
 	function loadScript(src, globalCheck = null) {
 		if (globalCheck && window[globalCheck]) return Promise.resolve();
@@ -203,9 +248,11 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		loadedScripts[src] = p;
 		return p;
 	}
+
 	async function extractTxt(file) {
 		return await file.text();
 	}
+
 	async function extractDocx(file) {
 		await loadScript(
 			"https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js",
@@ -235,6 +282,7 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 			console.warn("Mammoth warnings:", result.messages);
 		return result.value;
 	}
+
 	async function extractPdf(file) {
 		await loadScript(
 			"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",
@@ -267,6 +315,7 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		}
 		return text;
 	}
+
 	async function extractText(file) {
 		const ext = file.name.split(".").pop().toLowerCase();
 		switch (ext) {
@@ -282,6 +331,7 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 				throw new Error("Unsupported file type");
 		}
 	}
+
 	async function handleFile(file) {
 		if (file.size > MAX_FILE_SIZE) {
 			notyf.error("File too large. Maximum 10 MB allowed.");
@@ -317,16 +367,20 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 			}, 600);
 		}
 	}
+
 	function resetAll() {
 		currentFile = null;
 		extractedText = "";
 		clearTimeout(pollTimer);
 		ui.textarea.value = "";
+		if (ui.fileInput) ui.fileInput.value = "";
 		hideResults();
 		refreshUI();
 		isSubmitting = false;
-		ui.checkBtn.disabled = false;
+		if (ui.checkBtn) ui.checkBtn.disabled = false;
+		if (ui.processingOverlay) ui.processingOverlay.classList.add("d-none");
 	}
+
 	async function submitText(text, originalName) {
 		const res = await fetch(`${API_BASE}/submit`, {
 			method: "POST",
@@ -339,12 +393,10 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		}
 		return res.json();
 	}
+
 	async function submitFile(file, clientText) {
 		const fd = new FormData();
 		fd.append("file", file);
-		// Browser-parsed text (mammoth / pdf.js / FileReader) travels with the
-		// file so the server can skip re-parsing — the original is still
-		// uploaded and silently kept for reference.
 		if (clientText) fd.append("text", clientText);
 		const res = await fetch(`${API_BASE}/submit`, {
 			method: "POST",
@@ -356,6 +408,7 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		}
 		return res.json();
 	}
+
 	async function pollResult(formId, retries = 60) {
 		if (retries <= 0) throw new Error("Result timeout");
 		const res = await fetch(`${API_BASE}/result`, {
@@ -375,6 +428,7 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		if (!res.ok) throw new Error("Result fetch failed");
 		return res.json();
 	}
+
 	function renderResult(data) {
 		const payload = data.data || data;
 		let html = "";
@@ -382,48 +436,53 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 			html += fileBadgeHtml(currentFile?.name || payload.fileName);
 		}
 		if (payload.status) {
-			html += `<p class="mb-1"><strong>Status:</strong> <span class="badge bg-secondary">${esc(payload.status)}</span></p>`;
+			html += `<p style="margin-bottom: 8px; font-size: 14px;"><strong>Status:</strong> <span class="badge bg-secondary" style="background: var(--teal) !important;">${esc(payload.status)}</span></p>`;
 		}
 		if (payload.source) {
-			html += `<p class="mb-1"><strong>Source:</strong> ${esc(payload.source)}</p>`;
+			html += `<p style="margin-bottom: 8px; font-size: 14px;"><strong>Source:</strong> ${esc(payload.source)}</p>`;
 		}
 		if (payload.createdAt) {
-			html += `<p class="mb-1"><strong>Created:</strong> ${esc(payload.createdAt)}</p>`;
+			html += `<p style="margin-bottom: 12px; font-size: 14px;"><strong>Created:</strong> ${esc(payload.createdAt)}</p>`;
 		}
 		if (payload.grammarIssues && payload.grammarIssues.length) {
 			html +=
-				'<h6 class="mt-3">Issues Found:</h6><ul class="list-group list-group-flush">';
+				'<h6 style="font-family: \'DM Serif Display\', serif; font-size: 18px; margin-top: 16px; margin-bottom: 10px; color: var(--text-dark);">Issues Found:</h6><ul class="list-group list-group-flush" style="list-style: none; padding-left: 0;">';
 			payload.grammarIssues.forEach((issue) => {
-				html += `<li class="list-group-item text-danger">${esc(issue)}</li>`;
+				html += `<li class="list-group-item" style="color: #EF4444; padding: 8px 0; border-bottom: 1px solid var(--border);">${esc(issue)}</li>`;
 			});
 			html += "</ul>";
 		} else if (payload.text) {
 			html += `
-                <div class="d-flex align-items-center justify-content-between mt-3 mb-2">
-                    <h6 class="mb-0">Processed Text</h6>
-                    <button class="btn btn-sm btn-outline-primary copy-result-btn">
-                        <i class="bi bi-clipboard me-1"></i> Copy
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px; margin-bottom: 10px;">
+                    <h6 style="font-family: \'DM Serif Display\', serif; font-size: 18px; margin: 0; color: var(--text-dark);">Processed Text</h6>
+                    <button class="copy-result-btn" type="button">
+                        <i class="bi bi-clipboard"></i> Copy
                     </button>
                 </div>
             `;
-			html += `<pre id="result-text" class="bg-light p-3 rounded border">${esc(payload.text)}</pre>`;
+			html += `<pre id="result-text">${esc(payload.text)}</pre>`;
 		} else {
-			html += `<pre class="bg-light p-3 rounded border mt-2">${esc(JSON.stringify(payload, null, 2))}</pre>`;
+			html += `<pre class="mt-2">${esc(JSON.stringify(payload, null, 2))}</pre>`;
 		}
-		ui.resultsContent.innerHTML = html;
-		const copyBtn = ui.resultsContent.querySelector(".copy-result-btn");
+		if (ui.resultsContent) ui.resultsContent.innerHTML = html;
+		const copyBtn = ui.resultsContent ? ui.resultsContent.querySelector(".copy-result-btn") : null;
 		if (copyBtn && payload.text) {
 			copyBtn.addEventListener("click", () => copyToClipboard(payload.text));
 		}
-		ui.resultsBadge.className = "badge bg-success";
-		ui.resultsBadge.textContent = "Done";
-		ui.resultsPanel.classList.remove("d-none");
+		if (ui.resultsBadge) {
+			ui.resultsBadge.className = "badge bg-success";
+			ui.resultsBadge.textContent = "Done";
+		}
+		if (ui.resultsPanel) ui.resultsPanel.classList.remove("d-none");
 		notyf.success("Result ready!");
 	}
+
+	// ── Event Handlers ──
 	ui.browseButton.addEventListener("click", () => {
 		logger.log("[main.js] Browse clicked");
 		ui.fileInput.click();
 	});
+
 	ui.pasteBtn.addEventListener("click", async () => {
 		logger.log("[main.js] Paste clicked");
 		try {
@@ -435,11 +494,24 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 			notyf.error("Clipboard access denied. Paste manually (Ctrl+V).");
 		}
 	});
+
 	ui.clearBtn.addEventListener("click", () => {
 		logger.log("[main.js] Clear clicked");
 		resetAll();
 		notyf.success("Cleared");
 	});
+
+	if (ui.removeFileBtn) {
+		ui.removeFileBtn.addEventListener("click", () => {
+			logger.log("[main.js] Remove file clicked");
+			currentFile = null;
+			extractedText = "";
+			ui.textarea.value = "";
+			if (ui.fileInput) ui.fileInput.value = "";
+			refreshUI();
+		});
+	}
+
 	ui.cleanBtn.addEventListener("click", () => {
 		logger.log("[main.js] Format clicked");
 		if (!ui.textarea.value) {
@@ -450,6 +522,7 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		refreshUI();
 		notyf.success("Text formatted");
 	});
+
 	ui.checkBtn.addEventListener("click", async () => {
 		console.log("[checkBtn] clicked, isSubmitting:", isSubmitting);
 		try {
@@ -472,18 +545,13 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 			clearTimeout(pollTimer);
 			isSubmitting = true;
 			ui.checkBtn.disabled = true;
+			if (ui.processingOverlay) ui.processingOverlay.classList.remove("d-none");
 			hideResults();
-			logger.log("[checkBtn] calling notyf.open...");
+
 			notyf.open({ type: "info", message: "Submitting…", duration: 2000 });
-			logger.log("[checkBtn] notyf.open done");
 			let formId;
 			let data;
 			if (currentFile) {
-				// ALWAYS upload the original file — even when the browser
-				// parsed it client-side (docx/pdf/txt) — so the server
-				// silently keeps a reference copy. The extracted text is
-				// sent along in the 'text' field; only .doc (which the
-				// browser cannot parse) goes without it.
 				logger.log("[checkBtn] submitting file (+client text)...");
 				data = await submitFile(currentFile, text || null);
 				formId = data.formId;
@@ -494,7 +562,7 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 			} else {
 				throw new Error("Nothing to submit");
 			}
-			// Populate textarea with server-returned text (for .doc uploads)
+
 			if (data?.text) {
 				ui.textarea.value = formatBurmeseText(data.text);
 				refreshUI();
@@ -513,17 +581,22 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 			logger.log("ERROR:", "[checkBtn] CRASH:", e);
 			logger.log("ERROR:", "[checkBtn] stack:", e.stack);
 			notyf.error(e.message || "Submission failed");
-			ui.resultsBadge.className = "badge bg-danger";
-			ui.resultsBadge.textContent = "Error";
+			if (ui.resultsBadge) {
+				ui.resultsBadge.className = "badge bg-danger";
+				ui.resultsBadge.textContent = "Error";
+			}
 		} finally {
 			isSubmitting = false;
 			ui.checkBtn.disabled = false;
+			if (ui.processingOverlay) ui.processingOverlay.classList.add("d-none");
 			logger.log("[checkBtn] finally, reset state");
 		}
 	});
+
 	ui.textarea.addEventListener("input", () => {
 		refreshUI();
 	});
+
 	ui.fileInput.addEventListener("change", async (event) => {
 		const file = event.target.files?.[0];
 		if (!file) return;
@@ -533,24 +606,28 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		await handleFile(file);
 		event.target.value = "";
 	});
+
 	["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
 		document.addEventListener(eventName, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
 		});
 	});
+
 	document.addEventListener("dragenter", () => {
 		dragDepth++;
 		if (!hasText() && !hasFile()) {
 			showOverlay();
 		}
 	});
+
 	document.addEventListener("dragleave", () => {
 		dragDepth--;
 		if (dragDepth <= 0) {
 			hideOverlay();
 		}
 	});
+
 	document.addEventListener("drop", async (event) => {
 		hideOverlay();
 		const file = event.dataTransfer.files?.[0];
@@ -559,6 +636,7 @@ import { Dropdown, Modal, Collapse, Offcanvas, Popover } from "bootstrap";
 		refreshUI();
 		await handleFile(file);
 	});
+
 	window.addEventListener("resize", resizeTextarea);
 	refreshUI();
 	resizeTextarea();
