@@ -6,6 +6,23 @@
     GET  /api/content   query: job_id=..., apply=0|1        -> one full text
     POST /api/finalize  form: job_id=..., apply=0|1, fmt=txt|docx|pdf -> download
 
+Engine handshake (the owner's two-web design — the ENGINE initiates the
+connection and the praser RESPONDS WITH THE TEXT once parsing is done;
+the binary itself is only ever touched here, never in the Site server
+or the engine):
+
+    POST /api/engine/bind     JSON: job_id + metadata{submitId, filename,
+                              userId, sessionId, formId}
+                              the uploader side (same web, port-to-port)
+                              DECLARES the identity onto its job — once.
+    POST /api/engine/collect  JSON: the same metadata, presented BY THE
+                              ENGINE (cross-web). Cross-checked against
+                              the bound identity: aligned -> the response
+                              body IS the parsed text; misaligned -> 403
+                              and the binding is burned; not-yet-parsed
+                              -> 404 (the engine polls while encoding
+                              finishes). One binding = one collect.
+
 The preview returns the WHOLE extracted document as a single plain-text
 ``content`` field (no banner, no page markers, no HTML tags), plus per-page
 detection info and a list of cleanup changes as plain original/suggested
@@ -33,6 +50,22 @@ from pipeline import (
 _JOBS = {}
 _JOBS_LOCK = threading.Lock()
 _JOBS_MAX = 50
+
+# submitId -> job_id: the engine-handshake index. Filled ONLY by
+# /api/engine/bind (the uploader side declaring the identity), read by
+# /api/engine/collect (the engine presenting it). One binding per job.
+_BOUND = {}
+
+# identity fields both handshake endpoints must carry
+_META_FIELDS = ("submitId", "filename", "userId", "sessionId", "formId")
+
+
+def _meta_ok(m):
+    return (
+        isinstance(m, dict)
+        and all(isinstance(m.get(k), str) and m.get(k) for k in _META_FIELDS)
+        and m["filename"].startswith(m["submitId"])
+    )
 
 
 def create_app():
@@ -144,5 +177,65 @@ def create_app():
 
         download_name = f"{base}_cleaned.{'docx' if fmt == 'docx' else fmt}"
         return send_file(tmp.name, as_attachment=True, download_name=download_name)
+
+    # ── engine handshake: uploader side declares ─────────────────
+    @app.post("/api/engine/bind")
+    def engine_bind():
+        payload = request.get_json(silent=True) or {}
+        jid = (payload.get("job_id") or "").strip()
+        meta = payload.get("metadata")
+        if not jid or not _meta_ok(meta):
+            return jsonify({"error": "job_id and full metadata "
+                                     "(submitId, filename, userId, "
+                                     "sessionId, formId) are required; "
+                                     "filename must be the frontend-"
+                                     "created {submitId}{ext}"}), 400
+        with _JOBS_LOCK:
+            job = _JOBS.get(jid)
+            if job is None:
+                return jsonify({"error": "unknown or expired job_id"}), 404
+            if jid in _BOUND or any(
+                v == jid for v in _BOUND.values()
+            ):
+                return jsonify({"error": "job already bound"}), 403
+            _BOUND[meta["submitId"]] = jid
+            job["engine_meta"] = dict(meta)
+        return jsonify({"bound": True, "submitId": meta["submitId"]})
+
+    # ── engine handshake: the ENGINE presents, praser responds with text ──
+    @app.post("/api/engine/collect")
+    def engine_collect():
+        meta = request.get_json(silent=True) or {}
+        if not _meta_ok(meta):
+            return jsonify({"error": "metadata (submitId, filename, "
+                                     "userId, sessionId, formId) "
+                                     "required"}), 400
+        with _JOBS_LOCK:
+            jid = _BOUND.get(meta["submitId"])
+            job = _JOBS.get(jid) if jid else None
+            if job is None:
+                # the engine polls while parsing/forwarding is still
+                # running — 404 means "not ready yet", nothing echoed
+                return jsonify({"error": "not ready"}), 404
+            stored = job.get("engine_meta")
+            if stored != dict(meta):
+                # burned: a misaligned presentation kills the binding —
+                # nothing honest can collect under it afterwards
+                _BOUND.pop(meta["submitId"], None)
+                job.pop("engine_meta", None)
+                return jsonify({"error": "rejected: presented metadata "
+                                         "does not align with the bound "
+                                         "identity"}), 403
+            # one binding = one collect: drop the binding, keep the job
+            # for the site's own job_id flows until its TTL
+            _BOUND.pop(meta["submitId"], None)
+            job.pop("engine_meta", None)
+        return jsonify({
+            "job_id": jid,
+            "filename": job["filename"],
+            "kind": job.get("kind"),
+            "pages": len(job["reports"]),
+            "content": build_content(job),
+        })
 
     return app

@@ -8,22 +8,24 @@
 
    Zero extra dependencies (native node:http).
 
-   Endpoints:
+   Endpoints (the owner's two-web design — the ENGINE initiates):
      GET  /health   → { ok: true } — liveness, open
      POST /fsm      → hidden.js delivers the submission metadata into the
                       pre-receive cache (holds ≥20 records, TTL). THE KEYED
-                      ENDPOINT: X-API-Key + IP + origin gate. With fileUrl
-                      and no sha the engine PULLS the raw txt and computes
-                      the expectations itself.
-     POST /metadata → the PDF-praser side declares its metadata. NO key —
-                      accepted blindly; the metadata IS the key here: it is
-                      cross-checked against the hidden-delivered record.
-                      Misaligned → 403, record burned, the text body never
-                      crosses.
-     POST /process  → { hash, syllable: [ { index, syllable: [...] } ] }
-                      the text (body) or the pull signal (empty text +
-                      delivered fileUrl). MUST align with the hidden-
-                      delivered record or 403; burns on first arrival.
+                      ENDPOINT: X-API-Key + IP + origin gate. Delivery
+                      TRIGGERS the engine-initiated handshake below.
+     GET  /result/:hash → keyed poll target for the Site server:
+                      { done, engineHash, syllableCount }.
+     POST /process  → srcPath only (engine-local file, e.g. your pdf
+                      project's extracted .txt). Keyed.
+     (outbound)     → after /fsm delivery the engine CONNECTS to the PDF
+                      praser (PRASER_ENDPOINT, default :5005) and performs
+                      the handshake: it PRESENTS the delivered metadata at
+                      /api/engine/collect; the praser cross-checks it
+                      against the identity the uploader side bound and
+                      RESPONDS WITH THE TEXT once parsing finishes. The
+                      engine never touches binaries; the praser never
+                      needs a key — the delivered metadata IS the key.
 
    Request body (POST /process):
      {
@@ -36,13 +38,13 @@
      }
 
    Auth (handshake gate — fail closed): the KEY validates the hidden.js
-   → engine connection (POST /fsm): X-API-Key matching the root .env key
-   (FSM_KEY / ENGINE_KEY / API_KEY), a caller IP on the allowlist and,
-   when the caller sends Origin/Referer, a host on the origin allowlist.
-   No key configured = the engine refuses everything. The praser-side
-   endpoints (/metadata, /process) are deliberately UNKEYED — the praser
-   has no key; their validation is the hidden-delivered metadata itself.
-   /health is open. Body cap: MAX_PAYLOAD_MB (256).
+   → engine connection (POST /fsm, GET /result/:hash, POST /process):
+   X-API-Key matching the root .env key (FSM_KEY / ENGINE_KEY / API_KEY),
+   a caller IP on the allowlist and, when the caller sends Origin/Referer,
+   a host on the origin allowlist. No key configured = the engine refuses
+   everything. The OUTBOUND handshake to the praser carries no key — the
+   praser is validated by the metadata cross-check, not by a shared
+   secret. /health is open. Body cap: MAX_PAYLOAD_MB (256).
 
    Run:
      node Engine-backup/api-server.js            # port 9000 (or PORT env)
@@ -182,20 +184,38 @@ function gate(req) {
 /* ── hidden-delivered metadata — strong validator, no chaining ─
    The metadata cache is filled ONLY by hidden.js (POST /fsm, keyed):
    the trusted DB side tells the engine, ahead of time, what each
-   submission must look like — filename, userId, sessionId, formId,
-   sha256, byte length (≥20 records held; TTL-bounded). When the
-   PDF-praser side connects it is accepted BLINDLY (no key) and its
-   metadata is CROSS-CHECKED against the delivered record. Anything
-   that does not align — or arrives with no delivered record at all —
-   is rejected (403) and the record is burned before any text is
-   processed. One delivered record = at most one accepted push.
-
-   Expectations come from hidden (or from the raw txt the engine
-   itself pulls via fileUrl) — never from the caller being checked. */
+   submission must look like — submitId, filename (the frontend-created
+   name), userId, sessionId, formId; sha256/bytes when the Site server
+   already holds the parsed text. Delivery TRIGGERS the engine-side
+   handshake: the engine connects to the PDF praser, presents exactly
+   this metadata, and the praser — after cross-checking it against the
+   identity the uploader bound — RESPONDS WITH THE TEXT. Anything
+   misaligned is rejected at the praser (403 + burn) or at the engine
+   (delivered sha/bytes mismatch → burn). One delivered record = at
+   most one collect, one processing run. No chaining, no retries
+   against a different path. */
 const PRE_RECEIVED = new Map();
 const PRE_RECEIVED_MAX = parseInt(process.env.PRE_RECEIVED_MAX || "500", 10);
 const PRE_RECEIVED_TTL_MS = parseInt(
 	process.env.PRE_RECEIVED_TTL_MS || String(10 * 60 * 1000),
+	10,
+);
+
+/* Collected + processed results, keyed by submitId — the Site server
+   polls GET /result/:hash (keyed) for these. */
+const COLLECTED = new Map();
+
+/* The PDF praser service (same web as the frontend, different port in
+   dev; https cross-web in prod). The ENGINE initiates every connection. */
+const PRASER_ENDPOINT = (
+	process.env.PRASER_ENDPOINT || "http://127.0.0.1:5005"
+).replace(/\/$/, "");
+const COLLECT_TIMEOUT_MS = parseInt(
+	process.env.ENGINE_COLLECT_TIMEOUT_MS || String(120 * 1000),
+	10,
+);
+const COLLECT_RETRY_MS = parseInt(
+	process.env.ENGINE_COLLECT_RETRY_MS || "500",
 	10,
 );
 
@@ -215,29 +235,117 @@ function storePreReceived(record) {
 	PRE_RECEIVED.set(record.submitId, record);
 }
 
-function takePreReceived(submitId) {
-	const rec = PRE_RECEIVED.get(submitId);
-	if (!rec) return null;
-	if (Date.now() - rec.receivedAt > PRE_RECEIVED_TTL_MS) {
-		PRE_RECEIVED.delete(submitId);
-		return null;
+/* The engine-initiated handshake, owner design: connect to the PDF
+   praser, PRESENT the hidden-delivered metadata, and let the praser
+   RESPOND WITH THE TEXT once parsing finishes (404 = not ready yet →
+   keep waiting; 403 = misaligned → record burned, no retry). When
+   hidden delivered a sha, the responded text is verified against it —
+   the expectation still comes from the trusted side, never from the
+   text's own transport. On success the text is staged into the engine
+   workspace and processed with the caller's id (segmented_{submitId}_*).
+   Fail closed: every failure burns the record. */
+async function collectFromPraser(record) {
+	const deadline = Date.now() + COLLECT_TIMEOUT_MS;
+	let lastErr = "";
+	while (Date.now() < deadline) {
+		let res;
+		try {
+			res = await fetch(`${PRASER_ENDPOINT}/api/engine/collect`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					submitId: record.submitId,
+					filename: record.filename,
+					userId: String(record.userId ?? ""),
+					sessionId: record.sessionId,
+					formId: record.formId,
+				}),
+				signal: AbortSignal.timeout(30000),
+			});
+		} catch (err) {
+			lastErr = err.message;
+			await new Promise((r) => setTimeout(r, COLLECT_RETRY_MS));
+			continue;
+		}
+		if (res.status === 404) {
+			// praser has no bound job for this id YET — encoding/forwarding
+			// still in flight; this is the "engine waits" half of the design
+			await new Promise((r) => setTimeout(r, COLLECT_RETRY_MS));
+			continue;
+		}
+		if (res.status === 403) {
+			lastErr = "praser rejected the presented metadata (403, binding burned)";
+			break;
+		}
+		if (!res.ok) {
+			lastErr = `praser collect ${res.status}`;
+			break;
+		}
+		const payload = await res.json();
+		const content = String(payload.content ?? "");
+		if (record.textSha256 && sha256Hex(content) !== record.textSha256) {
+			lastErr = "collected text does not match the delivered textSha256";
+			break;
+		}
+		if (
+			(record.textBytes !== null && record.textBytes !== undefined) &&
+			Buffer.byteLength(content, "utf8") !== Number(record.textBytes)
+		) {
+			lastErr = "collected text does not match the delivered textBytes";
+			break;
+		}
+		// process: stage into the engine's own workspace, then the normal
+		// pipeline — readFromApi.js (FSM stream, \n-boundary) does the file
+		// reading; outputs land as segmented_{submitId}_*
+		let tmpFile = null;
+		try {
+			fs.mkdirSync(TMP_DIR, { recursive: true });
+			tmpFile = path.join(TMP_DIR, `api_${getDateTimeHash()}.txt`);
+			fs.writeFileSync(tmpFile, content, "utf8");
+			configure({
+				srcPath: tmpFile,
+				writeSyllable: true,
+				segmentedMode: "single",
+				debugMode: false,
+			});
+			const results = await grammarPipeline({ srcPath: tmpFile, hash: record.submitId });
+			const hash = results[0]?.hash ?? null;
+			const syllable = hash ? await invokeSyllableWithHash(hash) : [];
+			COLLECTED.set(record.submitId, {
+				done: true,
+				engineHash: hash,
+				syllableCount: Array.isArray(syllable) ? syllable.length : 0,
+				collectedAt: Date.now(),
+			});
+			console.log(
+				`[api-server] collected ${record.submitId} from praser — hash ${hash} (${syllable.length} syllables)`,
+			);
+		} catch (err) {
+			COLLECTED.set(record.submitId, {
+				done: false,
+				error: err.message,
+				collectedAt: Date.now(),
+			});
+			console.error(`[api-server] collect processing failed:`, err.message);
+		} finally {
+			if (tmpFile) {
+				try {
+					fs.unlinkSync(tmpFile);
+				} catch {
+					/* best-effort cleanup */
+				}
+			}
+			PRE_RECEIVED.delete(record.submitId);
+		}
+		return;
 	}
-	return rec;
-}
-
-/* Pull the raw txt the way hidden planned it: the engine fetches the
-   Site's raw endpoint (hidden serves it under the SAME key), buffers the
-   bytes and decodes ONCE — then hands it to the normal staging path,
-   where bridge/readFromApi.js (FSM stream, \n-boundary yields) does the
-   actual file reading. Fail closed: a failed pull caches nothing. */
-async function pullRawText(fileUrl) {
-	const res = await fetch(fileUrl, {
-		headers: { "X-API-Key": API_KEY },
-		signal: AbortSignal.timeout(30000),
+	COLLECTED.set(record.submitId, {
+		done: false,
+		error: lastErr || "collect timed out",
+		collectedAt: Date.now(),
 	});
-	if (!res.ok) throw new Error(`pull ${res.status} from raw endpoint`);
-	const buf = Buffer.from(await res.arrayBuffer());
-	return buf.toString("utf8");
+	PRE_RECEIVED.delete(record.submitId);
+	console.error(`[api-server] collect failed for ${record.submitId}: ${lastErr}`);
 }
 
 /* ── tiny helpers ────────────────────────────────────────────── */
@@ -342,26 +450,24 @@ async function handleRequest(req, res) {
 						"/fsm: filename is not the frontend-created name ({submitId}{ext})",
 				});
 			}
-			if ((record.textSha256 === null || record.textSha256 === undefined) && record.fileUrl) {
-				// No sha delivered — pull the raw txt and compute it. The
-				// expectation comes from the file itself, not the caller.
-				try {
-					const pulled = await pullRawText(record.fileUrl);
-					record.textSha256 = sha256Hex(pulled);
-					record.textBytes = Buffer.byteLength(pulled, "utf8");
-				} catch (err) {
-					return sendJson(res, 502, {
-						error: `/fsm: raw pull failed for ${record.submitId}: ${err.message}`,
-					});
-				}
-			}
-			if (record.textSha256 === null || record.textSha256 === undefined || record.textBytes === null || record.textBytes === undefined) {
-				return sendJson(res, 400, {
-					error: "/fsm: needs textSha256+textBytes or a pullable fileUrl",
-				});
-			}
+			// sha/bytes are OPTIONAL now: hidden (DB side) cannot compute
+			// them — when the Site server already holds the parsed text it
+			// delivers them, and the collected text is verified against
+			// them. fileUrl is stored for reference only; the text ALWAYS
+			// arrives via the engine-initiated praser handshake.
 			storePreReceived(record);
 			stored.push(record.submitId);
+		}
+		// The handshake starts HERE — the engine initiates the connection
+		// to the praser and waits for the response text. Not awaited: the
+		// Site polls GET /result/:hash for the outcome.
+		for (const id of stored) {
+			const rec = PRE_RECEIVED.get(id);
+			if (rec) collectFromPraser(rec).catch((err) => {
+				console.error("[api-server] collect crashed:", err.message);
+				PRE_RECEIVED.delete(id);
+				COLLECTED.set(id, { done: false, error: err.message, collectedAt: Date.now() });
+			});
 		}
 		return sendJson(res, 200, {
 			stored: stored.length,
@@ -370,155 +476,36 @@ async function handleRequest(req, res) {
 		});
 	}
 
-	/* ── POST /metadata — the praser side declares (BLIND, NO key) ─
-	   The praser has no key: this endpoint accepts the call blindly
-	   and the metadata itself is the key. It is cross-checked against
-	   the record hidden delivered (/fsm). Misaligned → 403 + burn, so
-	   the /process text body never crosses. Aligned → the record is
-	   KEPT for the one push it authorises. */
-	if (req.method === "POST" && url.pathname === "/metadata") {
-		let body;
-		try {
-			body = await readJson(req);
-		} catch (err) {
-			return sendJson(res, 400, { error: err.message });
-		}
-		const claimed = {
-			submitId: body.submitId,
-			filename: body.filename || body.fileName,
-			userId: body.userId,
-			sessionId: body.sessionId,
-			formId: body.formId,
-			textSha256: body.textSha256,
-			textBytes: body.textBytes,
-		};
-		const required = [
-			"submitId", "filename", "userId", "sessionId",
-			"formId", "textSha256", "textBytes",
-		];
-		const missing = required.filter(
-			(k) => claimed[k] === undefined || claimed[k] === null || claimed[k] === "",
-		);
-		if (missing.length) {
-			return sendJson(res, 400, {
-				error: `declare missing required validators: ${missing.join(", ")}`,
-			});
-		}
-		if (!hashKind(claimed.submitId)) {
-			return sendJson(res, 400, { error: "declare: unusable submitId shape" });
-		}
-		const rec = takePreReceived(claimed.submitId);
-		if (!rec) {
-			return sendJson(res, 403, {
-				error:
-					"rejected: no hidden-delivered metadata for this id — hidden must POST /fsm first",
-			});
-		}
-		const mism = [];
-		if (claimed.filename !== rec.filename) mism.push("filename");
-		if (String(claimed.userId) !== String(rec.userId)) mism.push("userId");
-		if (claimed.sessionId !== rec.sessionId) mism.push("sessionId");
-		if (String(claimed.formId) !== String(rec.formId)) mism.push("formId");
-		if (claimed.textSha256 !== rec.textSha256) mism.push("textSha256");
-		if (Number(claimed.textBytes) !== Number(rec.textBytes)) mism.push("textBytes");
-		if (mism.length) {
-			// burned: a poisoned declare kills the record — nothing honest
-			// can be pushed under it afterwards (one-shot, tamper-proof)
-			PRE_RECEIVED.delete(claimed.submitId);
-			return sendJson(res, 403, {
-				error: `rejected: declared metadata does not align with hidden-delivered record (${mism.join(", ")})`,
-			});
-		}
-		return sendJson(res, 200, { verified: true, submitId: claimed.submitId });
-	}
-
+	/* ── POST /process — srcPath only (engine-local file) ─────────
+	   Keyed like the other hidden-side routes. Body-text pushes are
+	   GONE: file text arrives exclusively through the engine-initiated
+	   praser handshake (see collectFromPraser). srcPath stays for the
+	   engine-local path (e.g. your pdf project's extracted .txt on the
+	   same machine). */
 	if (req.method === "POST" && url.pathname === "/process") {
+		const g = gate(req);
+		if (!g.ok) {
+			return sendJson(res, 403, { error: g.reason });
+		}
 		let body;
 		try {
 			body = await readJson(req);
 		} catch (err) {
 			return sendJson(res, 400, { error: err.message });
 		}
-
-		const { text, srcPath, ...rest } = body ?? {};
-
-		/* ── alignment gate (NO key — the record IS the validator) ───
-		   The push must align with the metadata hidden delivered for
-		   this id: filename, userId, sessionId, sha256, byte length.
-		   Anything that does not align is rejected and the record is
-		   burned — one delivery authorises at most one push.
-		   Pull mode: an empty body text + a delivered fileUrl means
-		   "encoding finished" — the engine pulls the raw txt itself
-		   (hidden serves it under the same key) and validates it
-		   against the delivered sha/bytes. srcPath pushes are engine-
-		   local and still require a live record. */
-		const rec = rest.hash ? takePreReceived(rest.hash) : null;
-		let processText = text ?? null;
-		if (processText === null && !srcPath && rec?.fileUrl) {
-			try {
-				processText = await pullRawText(rec.fileUrl);
-			} catch (err) {
-				PRE_RECEIVED.delete(rest.hash);
-				return sendJson(res, 502, {
-					error: `engine raw pull failed: ${err.message}`,
-				});
-			}
-		}
-		if (processText === null && !srcPath) {
+		const { srcPath, ...rest } = body ?? {};
+		if (!srcPath) {
 			return sendJson(res, 400, {
-				error: "text (or srcPath) required — POST JSON to /process",
+				error:
+					"srcPath required — body-text pushes were removed; text arrives via the engine-initiated praser handshake",
 			});
 		}
-		if (processText !== null) {
-			if (!rec) {
-				return sendJson(res, 403, {
-					error:
-						"rejected: no hidden-delivered metadata for this id — hidden must POST /fsm first",
-				});
-			}
-			const mism = [];
-			if ((rest.filename || rest.fileName) !== rec.filename) mism.push("filename");
-			if (String(rest.userId) !== String(rec.userId)) mism.push("userId");
-			if (rest.sessionId !== rec.sessionId) mism.push("sessionId");
-			if (sha256Hex(String(processText)) !== rec.textSha256) mism.push("textSha256");
-			if (Buffer.byteLength(String(processText), "utf8") !== rec.textBytes)
-				mism.push("textBytes");
-			// burned either way: tampered or replayed pushes get nothing
-			PRE_RECEIVED.delete(rest.hash);
-			if (mism.length) {
-				return sendJson(res, 403, {
-					error: `rejected: push does not align with hidden-delivered metadata (${mism.join(", ")})`,
-				});
-			}
-		}
-		const text_ = processText;
-
-		/* Engine only ever writes in ITS OWN workspace (File/.output|.tree).
-		   For raw `text` — whether a small sample or 6000+ pages sent in one
-		   body — stage a temp input file there, then delete it. The engine
-		   then reads that file through bridge/readFromApi.js (FSM stream,
-		   256 KB chunks): the caller does not stream, the engine side does.
-		   For srcPath — the caller (e.g. your pdf project's extracted .txt)
-		   passes an absolute path; the engine reads it, never writes it. */
-		let tmpFile = null;
-		let input = srcPath;
-		if (text_) {
-			try {
-				fs.mkdirSync(TMP_DIR, { recursive: true });
-				tmpFile = path.join(TMP_DIR, `api_${getDateTimeHash()}.txt`);
-				fs.writeFileSync(tmpFile, String(text_), "utf8");
-				input = tmpFile;
-			} catch (err) {
-				return sendJson(res, 500, { error: `Stage input failed: ${err.message}` });
-			}
-		}
-
 		/* Absolute caller path (pdf project) is used directly; a relative path
 		   is resolved against the SERVER cwd — same machine test setup. */
-		if (srcPath && !path.isAbsolute(srcPath)) {
+		let input = srcPath;
+		if (!path.isAbsolute(srcPath)) {
 			input = path.resolve(process.cwd(), srcPath);
 		}
-
 		try {
 			/* Same flag names the CLI uses — one row per flag, no registry.
 			   `hash` (optional) is the CALLER's id (server branch: submitId).
@@ -542,13 +529,22 @@ async function handleRequest(req, res) {
 			return sendJson(res, 200, { hash, syllable });
 		} catch (err) {
 			return sendJson(res, 500, { error: err.message });
-		} finally {
-			if (tmpFile) {
-				try {
-					fs.unlinkSync(tmpFile);
-				} catch { /* best-effort cleanup */ }
-			}
 		}
+	}
+
+	/* ── GET /result/:hash — keyed poll target for the Site server ──
+	   The outcome of the engine-initiated collect for this id. */
+	if (req.method === "GET" && url.pathname.startsWith("/result/")) {
+		const g = gate(req);
+		if (!g.ok) {
+			return sendJson(res, 403, { error: g.reason });
+		}
+		const hash = decodeURIComponent(url.pathname.slice("/result/".length));
+		if (!hash || !hashKind(hash)) {
+			return sendJson(res, 400, { error: "unusable hash shape" });
+		}
+		const outcome = COLLECTED.get(hash);
+		return sendJson(res, 200, outcome ?? { done: false, hash });
 	}
 
 	return sendJson(res, 404, { error: "Not found" });
@@ -577,4 +573,5 @@ http
 				`[api-server] handshake gate FAIL-CLOSED — no key in env/.env; /fsm refuses everything`,
 			);
 		}
+		console.log(`[api-server] praser handshake target: ${PRASER_ENDPOINT}/api/engine/collect (engine initiates)`);
 	});

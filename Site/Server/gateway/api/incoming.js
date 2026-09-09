@@ -28,11 +28,15 @@ export function createIncomingRouter({ upload, pool, request }) {
   // .pdf and .docx are server-only: the PRASER Python side does the encoding
   // work (embedded-cmap/model decoding + Zawgyi→Unicode) that browser
   // extractors cannot (see _file/pythonPdf.js). These injections are what
-  // make a bare PDF or DOCX upload parse.
+  // make a bare PDF or DOCX upload parse. NO binary is parsed in this
+  // process — the clients FORWARD the upload to the PRASER service
+  // (port-to-port, same web) and remember its job id for the engine bind.
+  const pdfPraser = createPythonPdfParser();
+  const docxPraser = createPythonDocxParser();
   const parser = createParser({
     saveOriginal,
-    pdfParser: createPythonPdfParser(),
-    docxParser: createPythonDocxParser(),
+    pdfParser: pdfPraser.parse,
+    docxParser: docxPraser.parse,
   });
   const textHolder = createTextHolder();
   const rawSaver = createRawSaver();
@@ -91,6 +95,34 @@ export function createIncomingRouter({ upload, pool, request }) {
         quarantinePath,   // ← pass it through
       });
 
+      // 4a) Uploader side of the engine handshake: the identity now exists
+      //     (responses.js minted {submitId}{ext} on save) — bind it to the
+      //     praser job the binary created. The ENGINE later presents the
+      //     hidden-delivered metadata against this binding. A bind failure
+      //     degrades gracefully: the upload survives, the engine collect
+      //     simply never aligns.
+      if (req.file) {
+        // only the formats that WENT through the praser service have a job
+        const ext = req.file.originalname.split('.').pop().toLowerCase();
+        const praser =
+          ext === 'pdf' ? pdfPraser
+          : ext === 'docx' || ext === 'doc' ? docxPraser
+          : null; // .txt never saw the service — nothing to bind
+        if (praser?.lastJob?.id) {
+          try {
+            await praser.bindIdentity({
+              submitId: result.submitId,
+              filename: result.filename, // the FRONTEND-created name
+              userId: String(req.userId),
+              sessionId: req.visitorHash,
+              formId,
+            });
+          } catch (err) {
+            console.error('[incoming] praser bind:', err.message);
+          }
+        }
+      }
+
       // 4b) Site → Private. Parsing is finished and the raw text is on
       //     disk — NOW open the engine connection and push the result
       //     (file submissions only: a plain-text submit never opened the
@@ -110,9 +142,6 @@ export function createIncomingRouter({ upload, pool, request }) {
               sessionId: req.visitorHash,
               source,
               originalName: req.file.originalname,
-              // hidden's raw endpoint — lets the engine pull the txt itself
-              // (pull mode) exactly as hidden.js hands it a fileUrl in prod
-              fileUrl: `${req.protocol}://${req.get('host')}/api/hidden/raw/${result.submitId}`,
             },
           });
           const ext = req.file.originalname.split('.').pop().toLowerCase();

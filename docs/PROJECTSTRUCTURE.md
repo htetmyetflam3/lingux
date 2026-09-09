@@ -78,6 +78,16 @@ stubbed or unwired; the contracts below are what to trust. Read before grepping.
   misaligns any validator (filename, userId, sessionId, textSha256,
   textBytes) is rejected 403 and the record is burned — one pre-receive
   authorises at most one push. The Python PRASER never calls the engine.
+- Two-web topology (owner design, v2.0.0): frontend + PDF praser on one
+  web (port-to-port), engine isolated. The ENGINE initiates every
+  cross-web connection: keyed /fsm delivery triggers an outbound
+  handshake to the praser (PRASER_ENDPOINT, /api/engine/collect) which
+  cross-checks the presented metadata against the uploader-side binding
+  (/api/engine/bind, made by incoming.js after the identity is minted)
+  and RESPONDS WITH THE TEXT once parsing finishes. Binaries are only
+  ever touched by the praser service — the Site forwards uploads
+  unopened, the engine never sees them. Site polls keyed
+  GET /result/:hash; invokeWithHash stays the read-back.
 - Endpoint split (owner design): the KEY guards hidden.js → engine
   (`POST /fsm` — the ONLY record creator; payload = hidden.js's exact
   shape, FSM_ENDPOINT already pointed there). The praser side

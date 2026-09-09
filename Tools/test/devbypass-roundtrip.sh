@@ -88,132 +88,97 @@ process.exit(bad);
 EOF
 [ $? -ne 0 ] && fail=1
 
-echo "== 8) hidden-delivered metadata: praser side must ALIGN or be REJECTED =="
-RAW_TXT_DIR="$ROOT/Site/Public/PRASER/Python/.output/txt"
-KEY="$KEY" RAW_TXT_DIR="$RAW_TXT_DIR" node - <<'EOF'
+echo "== 8) engine-initiated handshake: engine presents, praser responds with text =="
+KEY="$KEY" DOCX="$DOCX" node - <<'EOF'
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-const EP = 'http://127.0.0.1:9000';
-const KEY = process.env.KEY;          // FSM_KEY — only hidden's endpoint carries it
-const RAW = process.env.RAW_TXT_DIR;  // rawSaver's deterministic txt dir
+const ENGINE = 'http://127.0.0.1:9000';
+const PRASER = 'http://127.0.0.1:5005';
+const KEY = process.env.KEY;        // FSM_KEY — hidden-side routes only
+const DOCX = process.env.DOCX;      // small raw-Zawgyi fixture
 const checks = [];
 function check(name, ok, extra = '') {
   checks.push(ok);
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? ' (' + extra + ')' : ''}`);
 }
-const sha = (s) => crypto.createHash('sha256').update(s, 'utf8').digest('hex');
 const sid = () => crypto.randomUUID();
 const H = 'x'.repeat(32);
+const id0 = sid();
 
-function meta(id) {
-  return { submitId: id, filename: `${id}.pdf`, userId: 'u-1', sessionId: H, formId: 'f-1', source: 'file' };
+// a real praser job: forward the fixture binary (multipart) to the service
+async function preview() {
+  const fd = new FormData();
+  fd.append('file', new Blob([fs.readFileSync(DOCX)]), path.basename(DOCX));
+  const r = await fetch(`${PRASER}/api/preview`, { method: 'POST', body: fd });
+  const j = await r.json();
+  check('praser /api/preview -> job + content', r.status === 200 && !!j.job_id && !!j.content);
+  return j;
 }
-const TEXT = 'မင်္ဂလာပါ\nကောင်းသည်\n';
-const SHA = sha(TEXT);
-const BYTES = Buffer.byteLength(TEXT, 'utf8');
-
-// hidden's half: KEYED /fsm delivery (the ONLY record creator)
-function fsm(id, over = {}, withSha = true) {
-  return fetch(`${EP}/fsm`, { method: 'POST',
+const bindMeta = (id) => ({
+  submitId: id, filename: `${id}.docx`, userId: 'u-1', sessionId: H, formId: 'f-1',
+});
+async function bind(jobId, meta) {
+  return fetch(`${PRASER}/api/engine/bind`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ job_id: jobId, metadata: meta }) });
+}
+async function collect(meta) {
+  return fetch(`${PRASER}/api/engine/collect`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(meta) });
+}
+async function fsm(id, meta) {
+  return fetch(`${ENGINE}/fsm`, { method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-API-Key': KEY },
-    body: JSON.stringify({
-      ...meta(id), fileName: `${id}.pdf`, status: 'pending',
-      ...(withSha ? { textSha256: SHA, textBytes: BYTES } : {}), ...over }) });
+    body: JSON.stringify({ ...meta, status: 'pending', submitId: id }) });
 }
-// praser's half: BLIND /metadata declare (NO key header — metadata is the key)
-function declare(id, over = {}) {
-  return fetch(`${EP}/metadata`, { method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...meta(id), textSha256: SHA, textBytes: BYTES, ...over }) });
-}
-// praser's half: BLIND /process push (body text or pull signal)
-function push(id, over = {}) {
-  return fetch(`${EP}/process`, { method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: TEXT, hash: id, filename: `${id}.pdf`,
-      userId: 'u-1', sessionId: H, ...over }) });
+async function result(id) {
+  return fetch(`${ENGINE}/result/${id}`, { headers: { 'X-API-Key': KEY } });
 }
 
-// 1) aligned dance accepted (fsm -> declare -> push)
-let id = sid();
-let r = await fsm(id); let j = await r.json();
-check('fsm delivery (keyed) stored', r.status === 200 && j.stored === 1, JSON.stringify(j.pending));
-r = await declare(id);
-check('blind declare aligned -> verified', r.status === 200 && (await r.json()).verified === true);
-r = await push(id);
-check('aligned push accepted', r.status === 200, String(r.status));
-await r.json().catch(() => {});
+// 1-3) job + one-shot binding
+const j1 = await preview();
+let r = await bind(j1.job_id, bindMeta(id0));
+check('bind identity onto job', r.status === 200, String(r.status));
+r = await bind(j1.job_id, bindMeta(id0));
+check('second bind refused (one-shot)', r.status === 403, String(r.status));
 
-// 2) replay dies (record burned)
-r = await push(id, { text: TEXT });
-check('replay rejected (record burned)', r.status === 403, String(r.status));
+// 4-5) the ENGINE-initiated handshake: deliver (keyed) -> engine presents
+//      to the praser -> praser RESPONDS WITH THE TEXT -> engine processes
+r = await fsm(id0, bindMeta(id0));
+check('hidden delivery (keyed /fsm)', r.status === 200, String(r.status));
+let done = null;
+for (let i = 0; i < 60; i++) {
+  const rr = await result(id0);
+  const jj = await rr.json();
+  if (jj.done || jj.error) { done = jj; break; }
+  await new Promise((res) => setTimeout(res, 500));
+}
+check('engine collected + processed (hash==submitId)',
+  done?.done === true && done.engineHash === id0, JSON.stringify(done?.engineHash ?? done));
 
-// 3) push with NO hidden delivery at all
-let id2 = sid();
-r = await push(id2);
-check('push without hidden delivery rejected', r.status === 403, String(r.status));
+// 6) collect with an UNKNOWN id -> 404 (not ready, nothing echoed)
+r = await collect(bindMeta(sid()));
+check('collect unknown id -> 404 (engine keeps waiting)', r.status === 404, String(r.status));
 
-// 4) declare tampered sessionId -> 403 + record burned
-let id3 = sid();
-await fsm(id3);
-r = await declare(id3, { sessionId: 't'.repeat(32) });
-check('declare tampered sessionId rejected', r.status === 403, String(r.status));
-r = await push(id3);
-check('honest push after poisoned declare rejected', r.status === 403, String(r.status));
+// 7) tampered presentation burns the binding (no chaining)
+const j2 = await preview();
+const id2 = sid();
+await bind(j2.job_id, bindMeta(id2));
+r = await collect({ ...bindMeta(id2), userId: 'intruder' });
+check('tampered presentation -> 403 (binding burned)', r.status === 403, String(r.status));
+r = await collect(bindMeta(id2)); // now the honest metadata finds nothing
+check('honest presentation after burn -> 404 (no retry)', r.status === 404, String(r.status));
 
-// 5) declare tampered userId
-let id4 = sid();
-await fsm(id4);
-r = await declare(id4, { userId: 'intruder' });
-check('declare tampered userId rejected', r.status === 403, String(r.status));
-
-// 6) declare swapped filename
-let id5 = sid();
-await fsm(id5);
-r = await declare(id5, { filename: 'not-the-frontend-name.pdf' });
-check('declare swapped filename rejected', r.status === 403, String(r.status));
-
-// 7) push with tampered text (sha mismatch vs delivered)
-let id6 = sid();
-await fsm(id6);
-await declare(id6);
-r = await push(id6, { text: 'တမ်းစာ\n' });
-check('push tampered text (sha mismatch) rejected', r.status === 403, String(r.status));
-
-// 8) fsm missing sessionId refused
-r = await fsm(sid(), { sessionId: undefined });
-check('fsm delivery without sessionId refused', r.status === 400, String(r.status));
-
-// 9) fsm with non-frontend filename refused
-r = await fsm(sid(), { filename: 'original-name.pdf', fileName: 'original-name.pdf' });
-check('fsm with non-frontend filename refused', r.status === 400, String(r.status));
-
-// 10) PULL MODE: delivery with fileUrl only -> engine pulls the raw txt itself
-let id7 = sid();
-fs.mkdirSync(RAW, { recursive: true });
-fs.writeFileSync(path.join(RAW, `${id7}.txt`), TEXT);
-const fileUrl = `http://127.0.0.1:3210/api/hidden/raw/${id7}`;
-r = await fsm(id7, { fileUrl }, false); // no sha — engine must pull + compute
-j = await r.json();
-check('fsm with fileUrl only: engine pulled + stored', r.status === 200 && j.stored === 1, JSON.stringify(j));
-r = await declare(id7);
-check('declare aligned after engine pull', r.status === 200, String(r.status));
-r = await fetch(`${EP}/process`, { method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ hash: id7, filename: `${id7}.pdf`, userId: 'u-1', sessionId: H }) }); // NO text — pull signal
-check('pull-mode push accepted (engine pulled raw txt)', r.status === 200, String(r.status));
-await r.json().catch(() => {});
-
-// 11) honest dance after all the rejects still accepted
-let id8 = sid();
-await fsm(id8);
-await declare(id8);
-r = await push(id8);
-check('honest push after rejects still accepted', r.status === 200, String(r.status));
+// 8) /result is keyed
+r = await fetch(`${ENGINE}/result/${id0}`);
+check('engine /result without key -> 403', r.status === 403, String(r.status));
 
 process.exit(checks.every(Boolean) ? 0 : 1);
 EOF
+[ $? -ne 0 ] && fail=1
+
 
 echo "== 9) engine handshake gate: the KEY guards hidden -> engine (/fsm) =="
 KEYV="$(grep '^FSM_KEY=' "$ROOT/.env" | cut -d= -f2)"
@@ -234,14 +199,8 @@ check "engine /fsm: foreign origin -> 403" 403 "$(code -X POST http://127.0.0.1:
 # /fsm: right key, allowed origin (localhost:3000) -> GATE PASSES (400 = body validation, not 403)
 check "engine /fsm: localhost:3000 origin passes gate" 400 "$(code -X POST http://127.0.0.1:9000/fsm -H 'Content-Type: application/json' -H "X-API-Key: $KEYV" -H 'Origin: http://localhost:3000' -d '{}')"
 
-# /fsm: right key, no origin header (server-to-server) -> key+ip gate it (400 = body validation)
-check "engine /fsm: no origin (s2s) passes gate" 400 "$(code -X POST http://127.0.0.1:9000/fsm -H 'Content-Type: application/json' -H "X-API-Key: $KEYV" -d '{}')"
-
-# /metadata is BLIND by design: no key header — but unknown ids still 403
-check "engine /metadata: blind (no key), unknown id -> 403" 403 "$(code -X POST http://127.0.0.1:9000/metadata -H 'Content-Type: application/json' -d "{\"submitId\":\"$(node -e "console.log(crypto.randomUUID())")\",\"filename\":\"x.pdf\",\"userId\":\"u\",\"sessionId\":\"$(printf 'a%.0s' {1..32})\",\"formId\":\"f\",\"textSha256\":\"h\",\"textBytes\":1}")"
-
-# /process unkeyed, no delivered record -> 403
-check "engine /process: unkeyed, no record -> 403" 403 "$(code -X POST http://127.0.0.1:9000/process -H 'Content-Type: application/json' -d "{\"text\":\"x\",\"hash\":\"$(node -e "console.log(crypto.randomUUID())")\"}")"
+# /process is keyed now (engine-local srcPath only)
+check "engine /process without key -> 403" 403 "$(code -X POST http://127.0.0.1:9000/process -H 'Content-Type: application/json' -d '{"srcPath":"/etc/hostname"}')"
 
 # caller-IP gate: second engine instance whose allowlist EXCLUDES loopback
 PORT=9005 ENGINE_ALLOWED_IPS=10.0.0.99 node "$ROOT/Private/Syllable/api-server.js" >/tmp/eng9005.log 2>&1 &

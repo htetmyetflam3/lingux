@@ -24,6 +24,7 @@ export default [
         AbortController: 'readonly',
         AbortSignal: 'readonly',
         URL: 'readonly',
+        Blob: 'readonly',
         ReadableStream: 'readonly',
         CompressionStream: 'readonly',
         Response: 'readonly',

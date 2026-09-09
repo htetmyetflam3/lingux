@@ -1,61 +1,48 @@
 // FILE: Server/gateway/generator/engine.js
 //
-// The Site → Private (Engine) connection — the owner's full design:
+// The Site → Private (Engine) connection — the owner's two-web design:
 //
 //   hidden.js ──(KEY: FSM_KEY)──▶ engine POST /fsm
 //        the trusted DB side DELIVERS the submission metadata into the
 //        engine's pre-receive cache ahead of time (≥20 records, TTL).
-//        This is the only keyed endpoint; key + caller IP + origin gate.
+//        Key + caller IP + origin gate. This DELIVERY TRIGGERS the
+//        engine: it immediately opens the connection to the PDF praser.
 //
-//   praser side ──(NO key — accepted blindly)──▶ engine POST /metadata
-//        the PDF-praser side DECLARES its metadata; the engine cross-
-//        checks it against the hidden-delivered record. The metadata IS
-//        the key here. Misaligned → 403, record burned, the text body
-//        never crosses.
+//   engine ──(engine initiates, cross-web)──▶ PDF praser /api/engine/collect
+//        the engine PRESENTS the delivered metadata; the praser cross-
+//        checks it against the identity the uploader side bound (incoming
+//        → /api/engine/bind, port-to-port on the frontend's web) and
+//        RESPONDS WITH THE TEXT once parsing finishes. No key on this
+//        hop — the delivered metadata IS the key. Misaligned → 403 +
+//        burned binding; not-ready-yet → 404 and the engine keeps
+//        waiting (bounded).
 //
-//   praser side ──(NO key)──▶ engine POST /process
-//        the text in the body (or an empty-text pull signal when hidden
-//        delivered a fileUrl — the engine pulls the raw txt itself and
-//        validates it against the delivered sha/bytes). Must align with
-//        the record; the record burns on first arrival (one delivery =
-//        at most one accepted push, replays die).
+//   Site server ──(KEY)──▶ engine GET /result/:hash
+//        this bridge polls the outcome, then reads the processed text
+//        back (invokeWithHash — Module A → Module B, readFromApi's FSM
+//        stream, \n-boundary yields).
 //
-// Two independent parties must agree before any text is processed: the
-// engine's expectations come from hidden (or from the raw file it pulls)
-// — never from the party being checked. No chaining, no retry.
-//
-// FILE vs BODY — the decision
-// ───────────────────────────
-// The parsed text is sent in the request BODY ({ text }), never as a file:
-//
-//   1. readFromApi.js (Module B) is the ENGINE's internal reader — paths
-//      resolve against the ENGINE's cwd. It is how the engine reads files
-//      AFTER staging, not a transport a caller can hand a file through.
-//      invokeWithHash (Module A) only builds filenames for files the ENGINE
-//      itself wrote (segmented_{hash}_*.txt).
-//   2. api-server.js already defines the body path: `text` is staged into a
-//      temp file in the engine's OWN workspace and read through the FSM
-//      stream reader (256 KB chunks, \n-boundary yields) — "the caller does
-//      not stream, the engine side does". Body cap: MAX_PAYLOAD_MB.
-//   3. `srcPath` works only on a shared filesystem (the code itself calls it
-//      the "same machine test setup") — but Site and Engine deploy
-//      separately. No shared disk in production → body.
+// The binary (PDF/docx) is only ever touched by the PRASER service: the
+// Site forwards it unopened (multipart, same web) and the engine never
+// sees it at all. The Site server and the engine deal in metadata and
+// plain text only.
 //
 // VALIDATORS, NOT OPTIONS (client side of the same contract)
 // ──────────────────────────────────────────────────────────
 //   filename    the FRONTEND-created name ({submitId}{ext}, responses.js)
 //   userId      the caller's DB id (cookie chain)
 //   sessionId   the visitor/session hash from the session cookie
-//   textSha256  sha256 of the text — delivered by hidden, declared by the
-//               praser side, verified on arrival
+//   textSha256  sha256 of the parsed text — delivered by hidden and
+//               verified by the engine against the praser's response
 //   textBytes   utf8 byte length
 //
 // This bridge refuses to even dial the engine without them.
 //
-// The HASH travels with the body: we pass `hash: submitId` (a uuid — the one
-// shape hashKind() accepts besides the engine's own timestamp). runMain()
-// names the outputs segmented_{submitId}_*.txt, so the join key between the
-// submissions row and the engine files is the id the server already holds.
+// The HASH travels with the delivery: we pass the submitId (a uuid — the one
+// shape hashKind() accepts besides the engine's own timestamp). The engine
+// processes under it and names the outputs segmented_{submitId}_*.txt, so
+// the join key between the submissions row and the engine files is the id
+// the server already holds.
 //
 // Cross-deployment note: reading the result back via invokeWithHash works
 // while both halves share this repo (same-repo import, like logen.js /
@@ -69,14 +56,17 @@ import { hashKind, invokeWithHash } from
 const DEFAULTS = {
   endpoint: process.env.ENGINE_ENDPOINT || 'http://localhost:9000',
   key: process.env.ENGINE_KEY || process.env.FSM_KEY || '',
-  // runMain() rebuilds the syllable tree per call — a whole book takes real
-  // time. 5 min before we give up on the engine (the upload itself survives).
+  // The engine waits for the praser itself (ENGINE_COLLECT_TIMEOUT_MS on
+  // the engine side); this is how long the SITE keeps polling before it
+  // gives up (the upload itself survives).
   timeoutMs: Number.parseInt(process.env.ENGINE_TIMEOUT_MS || '300000', 10),
+  pollMs: Number.parseInt(process.env.ENGINE_POLL_MS || '600', 10),
 };
 
 /**
- * Site → Private. Three steps — hidden delivers, the praser side declares,
- * the praser side pushes. Strictly validated, no chaining.
+ * Site → Private. Deliver the metadata (keyed), then poll the engine's
+ * outcome — the engine does the praser handshake itself. Strictly
+ * validated, no chaining.
  */
 export function createEngineBridge(opts = {}) {
   const cfg = { ...DEFAULTS, ...opts };
@@ -95,8 +85,7 @@ export function createEngineBridge(opts = {}) {
         'engine bridge: filename required and must be the frontend-created name ({submitId}{ext})',
       );
     }
-    const { formId, userId, sessionId, source, originalName, fileUrl } = metadata;
-    // originalName rides along for the engine's logs; not a validator
+    const { formId, userId, sessionId, source, originalName } = metadata;
     if (userId === undefined || userId === null || userId === '') {
       throw new Error('engine bridge: userId is a required validator');
     }
@@ -106,12 +95,16 @@ export function createEngineBridge(opts = {}) {
       );
     }
 
-    const textSha256 = crypto.createHash('sha256').update(text, 'utf8').digest('hex');
-    const textBytes = Buffer.byteLength(text, 'utf8');
+    // 3) Deliver (KEYED /fsm). With the parsed text in hand we also deliver
+    //    its sha/bytes — the engine verifies the praser's response against
+    //    them, so the expectation comes from this trusted side, never from
+    //    the text's own transport.
+    const hasText = text !== null && text !== undefined;
+    const textSha256 = hasText
+      ? crypto.createHash('sha256').update(text, 'utf8').digest('hex')
+      : null;
+    const textBytes = hasText ? Buffer.byteLength(text, 'utf8') : null;
 
-    // 3) hidden's half of the dance — KEYED. The same payload shape
-    //    hidden.js POSTs from the DB row in production (fileName, fileUrl,
-    //    status …). With sha+bytes attached the engine needs no raw pull.
     const delivered = await fetch(`${cfg.endpoint}/fsm`, {
       method: 'POST',
       headers: {
@@ -127,7 +120,6 @@ export function createEngineBridge(opts = {}) {
         originalName: originalName ?? null,
         status: 'pending',
         submitId,
-        fileUrl: fileUrl ?? null,
         textSha256,
         textBytes,
       }),
@@ -140,64 +132,41 @@ export function createEngineBridge(opts = {}) {
       );
     }
 
-    // 4) The praser side declares — BLIND on purpose (no key header): the
-    //    engine cross-checks this against what hidden delivered.
-    const declared = await fetch(`${cfg.endpoint}/metadata`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        formId,
-        submitId,
-        filename,
-        userId,
-        sessionId,
-        textSha256,
-        textBytes,
-      }),
-      signal: AbortSignal.timeout(cfg.timeoutMs),
-    });
-    if (!declared.ok) {
-      const detail = await declared.text().catch(() => '');
-      throw new Error(
-        `engine /metadata ${declared.status}: ${detail.slice(0, 300) || declared.statusText}`,
-      );
+    // 4) Poll the outcome — the engine is busy handshaking the praser.
+    const deadline = Date.now() + cfg.timeoutMs;
+    let outcome = null;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, cfg.pollMs));
+      const res = await fetch(`${cfg.endpoint}/result/${encodeURIComponent(submitId)}`, {
+        headers: { 'X-API-Key': cfg.key },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        throw new Error(
+          `engine /result ${res.status}: ${detail.slice(0, 300) || res.statusText}`,
+        );
+      }
+      outcome = await res.json();
+      if (outcome.error) {
+        throw new Error(`engine collect failed: ${outcome.error}`);
+      }
+      if (outcome.done) break;
     }
-
-    // 5) Push the text in the body, tagged with the same validators.
-    const res = await fetch(`${cfg.endpoint}/process`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text,
-        hash: submitId, // outputs land as segmented_{submitId}_*.txt
-        filename,
-        userId,
-        sessionId,
-        writeSyllable: true,
-        writePos: true,
-        segmentedMode: 'single',
-        debugMode: false,
-      }),
-      signal: AbortSignal.timeout(cfg.timeoutMs),
-    });
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '');
-      throw new Error(
-        `engine /process ${res.status}: ${detail.slice(0, 300) || res.statusText}`,
-      );
+    if (!outcome?.done || !outcome.engineHash) {
+      throw new Error('engine collect timed out');
     }
-    const { hash, syllable } = await res.json();
-    if (!hash) throw new Error('engine /process returned no hash');
+    const { engineHash, syllableCount } = outcome;
 
-    // 6) Read the processed text back from the engine's output dir —
+    // 5) Read the processed text back from the engine's output dir —
     //    Module A (invokeWithHash) → Module B (readFromApi, 256 KB chunks).
-    const resultText = await invokeWithHash(hash);
+    const resultText = await invokeWithHash(engineHash);
 
     return {
       connected: true,
       submitId,
-      engineHash: hash,
-      syllableCount: Array.isArray(syllable) ? syllable.length : 0,
+      engineHash,
+      syllableCount,
       text: resultText,
     };
   }

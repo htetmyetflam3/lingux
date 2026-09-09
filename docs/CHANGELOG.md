@@ -17,6 +17,18 @@ uses [Semantic Versioning](https://semver.org/).
 *Note* : **"previous changelog arent registerd here .so start registering fron 1.4.0"**
 
 
+## [2.0.0] - 2026-09-09
+### Added
+- The owner's two-web topology, engine-initiated: frontend + PDF praser live on one web (port-to-port), the engine is isolated; hidden→engine and engine→praser cross webs (https in prod).
+- Engine-initiated handshake: a keyed `POST /fsm` delivery TRIGGERS the engine to connect to the praser (`PRASER_ENDPOINT`, default :5005) and PRESENT the delivered metadata at `POST /api/engine/collect`; the praser cross-checks it against the identity the uploader side bound and RESPONDS WITH THE TEXT once parsing finishes (404 = not ready yet → the engine waits, bounded by ENGINE_COLLECT_TIMEOUT_MS; 403 = misaligned → binding burned, no retry).
+- Praser service (`module/api.py`): `POST /api/engine/bind` — the uploader side declares the minted identity ({submitId, filename, userId, sessionId, formId}) onto its job, once; `POST /api/engine/collect` — the engine presents, the response body IS the parsed text. One binding = one collect.
+- Engine `GET /result/:hash` (keyed): the Site polls the collect outcome ({done, engineHash, syllableCount}).
+### Changed
+- NO binary is parsed in the Site server or the engine anymore: pythonPdf.js forwards the upload UNOPENED (multipart) to the praser service; the CLI is only spawned for the docx RESULT rewrite. The engine stages the collected text and reads it via readFromApi (FSM stream, \n-boundary yields).
+- Site bridge: keyed /fsm delivery (+ textSha256/textBytes when the parsed text is in hand — the engine verifies the praser's response against them) then polls /result; the old /metadata declare + /process text-push are GONE. Engine /process is now keyed and srcPath-only.
+### Notes
+- userId is normalized to a string at the engine/praser boundary (dev-bypass userId is numeric).
+- One collect per binding — tamper burns it (no chaining), matching the no-retry rule.
 ## [1.9.0] - 2026-09-09
 ### Added
 - Engine `POST /fsm` — the endpoint hidden.js has been pointed at all along (FSM_ENDPOINT=http://localhost:9000/fsm). It is the ONLY record creator for the metadata cache and the ONLY keyed route: X-API-Key (root .env FSM_KEY/ENGINE_KEY) + caller-IP allowlist + origin allowlist, fail closed. Payload = hidden.js's exact shape (fileName, fileUrl, status, submitId, userId, sessionId, formId …); accepts a batch via `records`.
