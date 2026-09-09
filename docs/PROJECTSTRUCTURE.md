@@ -3,8 +3,8 @@
 
 Burmese grammar checker. Text or file in → extracted `.txt` → Engine analyses.
 This file records **logic and owner corrections**, not code state — code may be
-stubbed or unwired; the contracts below are what to trust. Read before grepping.
-
+stubbed or unwired; the contracts below are what to trust. Read before grepping scroll to the button and read the  note twice  after that feel free to include any lines inside this file as part of commit.
+**This file here isnt intended and serve as system description and technical explanations . We all know what everyone else knew so this is a file  to describe everyone else  may assume wrongly by thinking typical naming,workflow and missmatch for people who touch and read your code **
 ---
 
 ## Corrections — wrong assumptions agents make
