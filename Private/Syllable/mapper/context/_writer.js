@@ -34,6 +34,9 @@ export function writeRefToDir(refData, treeDir = TreeFile()) {
   return filePath;
 }
 export function writeOutput(syllablesPerLine, outputDir = OutputFile()) {
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
   writerStart({ outputDir, lineCount: syllablesPerLine.length });
   const ts = getHash();
   const outputPath = joinPath(outputDir, `segmented_${ts}.txt`);

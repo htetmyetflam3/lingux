@@ -6,7 +6,14 @@
 *Note* : **"previous changelog arent registerd here .so start registering fron 1.4.0"**
 
 
-## [2.3.1] - 2026-09-09
+## [2.4.0] - 2026-09-10
+### Added
+- Created `initiate.js` and `Tools/build/initiate.js` end-to-end setup and project bootstrapping script (`npm run initiate` / `npm start`).
+- Automated pipeline sequence: verifies encrypted knowledge JSON (`master.json.enc`), builds map binary bytecode (`map-runtime.jsc`) from candidate map source paths (including `../../mymap/`), generates syllable lookup + POS trees via `Syllable.initS.js`, boots PRASER Python Flask API (`127.0.0.1:5055`), builds SPA via Vite & Sass into `Site/Public/STATIC/frontend`, and boots Express server (`Site/index.js`) under nodemon / node supervision.
+### Fixed
+- Fixed recursive directory creation in `Private/Syllable/builder/build.js` and `_writer.js` so `runBuildPhase()` creates target tree output directories without missing-path errors.
+- Fixed Sass Bootstrap maps import in `Site/Public/STATIC/Build/scss/main.scss` for smooth Vite bundling.
+
 ### Added (defense-in-depth BEHIND the session boundary — validator + flood dam)
 - Context (owner's model, exact): curl never exists in production. The boundary is the SESSION ID — only the frontend flow mints one (cookie chain), so curl without a session id is dead regardless of its JSON; production curl additionally dies at headerCheck's bot-UA regex. The DB ownership check materializes at the SAVE-TO-DISK stage (rawSaver writes, finalizeUpload lands the submissions row) as the last backstop. Even DEV_BYPASS_SESSION=true lets curl through ONLY because that flag deliberately opens BOTH headerCheck and the session gates in dev — and it is inert under NODE_ENV=production (fail closed). The flags exist for agents that cannot use the interactive UI. Nothing below adds or opens any curl door: the validator + dam are defense-in-depth BEHIND the session boundary (a spoofed-UA script or an abusive logged-in session), which the curl experiment merely demonstrated.
 - `validatePublicText` (Server/gateway/text/validate.js): single pass, O(n), constant memory, NO regex on user input (no ReDoS). Zero control chars (NUL/\x01/ESC are smuggled binary, not prose), ≤16 U+FFFD (broken/double-encoded payloads), ≤64 invisible/format chars (zero-widths, BOM, bidi overrides — evasion carriers), 2M-char cap. REJECT, never rewrite (same rule as PRASER_CLEANUP=no). Burmese prose passes untouched.

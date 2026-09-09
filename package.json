@@ -1,16 +1,19 @@
 {
    "name": "fsmgr-root",
-   "version": "2.2.0",
+   "version": "2.4.0",
    "description": "Root workspace for Lingux development toolchain",
    "author": "KaungMyatThu",
    "license": "ISC",
    "private": true,
    "type": "module",
    "scripts": {
+      "initiate": "node initiate.js",
+      "start": "node initiate.js",
+      "build": "vite build --config Site/Public/STATIC/Build/vite.config.js",
       "lint": "eslint .",
       "lint:fix": "eslint . --fix",
       "format": "prettier --write .",
-      "dev": "nodemon",
+      "dev": "nodemon Site/index.js",
       "gh": "gh"
    },
    "main": "eslint.config.js",
