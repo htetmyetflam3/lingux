@@ -9,7 +9,7 @@
  *
  * Named options are also accepted:
  *   --env path/.env   --src path   --no-syllable
- *   --batch   --debug
+ *   --readdir   --debug
  */
 
 import { configure, grammarPipeline } from "./Syllable.initS.js";
@@ -38,7 +38,7 @@ const options = {
   srcPath: valueAfter(args, "--src") ?? positional[0],
   writeSyllable: flag(args, "--syllable", "--no-syllable") ?? bool(positional[1]),
   writePos: flag(args, "--pos", "--no-pos"),
-  segmentedMode: args.includes("--batch") ? "batch" : undefined,
+  segmentedMode: args.includes("--readdir") ? "readdir" : undefined,
   debugMode: args.includes("--debug") ? true : undefined,
 };
 

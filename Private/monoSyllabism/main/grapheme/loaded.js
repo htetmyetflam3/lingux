@@ -193,19 +193,19 @@ export function splitBuffer(buffer) {
 }
 
 /**
- * Calculate optimal line-batch size for downstream tagger/rule engine.
+ * Calculate optimal lines-per-flush for downstream tagger/rule engine.
  * Accepts either a file path string or a raw byte count (from API headers).
  *
  * Sane Burmese line density tiers:
  *   - < 20 KB (queries, short text): Infinity (1-pass in RAM)
- *   - 20 KB - 2 MB (~30k lines):    1,000 lines/batch (~25 clean batches)
- *   - 2 MB - 10 MB:                 2,500 lines/batch
- *   - > 10 MB:                      5,000 lines/batch
+ *   - 20 KB - 2 MB (~30k lines):    1,000 lines/flush (~25 clean flushes)
+ *   - 2 MB - 10 MB:                 2,500 lines/flush
+ *   - > 10 MB:                      5,000 lines/flush
  *
  * @param {string|number|null} source - File path or known byte size
- * @returns {number} batch line count
+ * @returns {number} lines-per-flush count
  */
-export function getBatchSize(source) {
+export function getFlushLines(source) {
   let sizeMB = null;
 
   if (typeof source === 'number') {

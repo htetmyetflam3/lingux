@@ -1,7 +1,7 @@
 import { OutputFile } from "./path.js";
 import { bridgeStart, bridgeEnd, bridgeLineCount } from "./logen.js";
 import { createStreamWriter } from "./store.js";
-import { getBatchSize } from "../monoSyllabism/main/grapheme/loaded.js";
+import { getFlushLines } from "../monoSyllabism/main/grapheme/loaded.js";
 import { toBurmeseLine, toBurmeseLineWithPos, toLineStrings } from "./readable.js";
 import { runTagger } from "../monoSyllabism/main/phoneme/phonology.js";
 import { runRuleEngine } from "../monoSyllabism/main/endofmain.js";
@@ -65,20 +65,20 @@ async function* fullstopHolder(seg) {
 export async function bridge(seg, writeFlags, hash, inputPath) {
 	bridgeStart({ file: inputPath, hash });
 
-	const batchSize = getBatchSize(inputPath);
+	const flushLines = getFlushLines(inputPath);
 	const hooks = new BridgeHooks();
 	const writers = {};
 	let lineCount = 0;
 
 	if (writeFlags.syllable) {
-		writers.syllable = createStreamWriter(OutputFile(), "syllable", batchSize);
+		writers.syllable = createStreamWriter(OutputFile(), "syllable", flushLines);
 		hooks.syllable.tap((line) => {
 			writers.syllable.writeLine([toBurmeseLine(line)]);
 		});
 	}
 
 	if (writeFlags.rawPos) {
-		writers.rawPos = createStreamWriter(OutputFile(), "raw_pos", batchSize);
+		writers.rawPos = createStreamWriter(OutputFile(), "raw_pos", flushLines);
 		hooks.rawPos.tap((line) => {
 			writers.rawPos.writeLine([
 				toBurmeseLineWithPos(line, "rawPos"),
@@ -125,12 +125,12 @@ export async function bridge(seg, writeFlags, hash, inputPath) {
 export async function bridgeSyllable(seg, writeFlags, hash, inputPath) {
 	bridgeStart({ file: inputPath, hash });
 
-	const batchSize = getBatchSize(inputPath);
+	const flushLines = getFlushLines(inputPath);
 	let syllablePath = null;
 	let lineCount = 0;
 
 	if (writeFlags.syllable) {
-		const writer = createStreamWriter(OutputFile(), "syllable", batchSize);
+		const writer = createStreamWriter(OutputFile(), "syllable", flushLines);
 		lineCount = await writer.consumeSyllable(seg);
 		syllablePath = writer.close();
 	} else {

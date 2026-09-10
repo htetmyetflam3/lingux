@@ -50,7 +50,7 @@ export function writeOutput(syllablesPerLine, outputDir = OutputFile()) {
   writerEnd({ path: outputPath });
   return outputPath;
 }
-export function createStreamWriter(outputDir = OutputFile(), suffix = '', batchSize = 1000) {
+export function createStreamWriter(outputDir = OutputFile(), suffix = '', flushLines = 1000) {
   const ts = getHash();
   const suffixPart = suffix ? `_${suffix}` : '';
   const outputPath = joinPath(outputDir, `segmented_${ts}${suffixPart}.txt`);
@@ -66,7 +66,7 @@ export function createStreamWriter(outputDir = OutputFile(), suffix = '', batchS
   function writeLine(syllables) {
     buffer += syllables.join('  ') + '\n';
     lineCount++;
-    if (lineCount % batchSize === 0) flush();
+    if (lineCount % flushLines === 0) flush();
   }
   /* Syllable-only path: the writer consumes the segmentor generator
      directly — assemble each \n line (readable.js) and write it. */

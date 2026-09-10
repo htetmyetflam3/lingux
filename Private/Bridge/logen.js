@@ -484,7 +484,7 @@ export function reportPosTreeHitRoot(module, root, step) {
 export function init(flags = {}) {
   if (_initialized) return;
   _debug = flags.DEBUG === true;
-  _batchMode = flags.BATCH === true || flags.SEGMENTED_MODE === 'batch';
+  _batchMode = flags.BATCH === true || flags.SEGMENTED_MODE === 'readdir';
   clearLogs();
   _initialized = true;
 

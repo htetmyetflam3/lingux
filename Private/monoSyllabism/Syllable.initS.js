@@ -71,7 +71,7 @@ let _ready = false;
 const _state = {
 	WRITE_SYLLABLE: true,
 	WRITE_POS: true,
-	SEGMENTED_MODE: "single",
+	SEGMENTED_MODE: "fromdisk",
 	DEBUG_MODE: false,
 	SRC: null,
 	ENV: {},
@@ -86,7 +86,7 @@ function _ensureInit(envPath) {
 
 	_state.WRITE_SYLLABLE = getFlag(env, "WRITE_SYLLABLE", true);
 	_state.WRITE_POS = getFlag(env, "WRITE_POS", true);
-	_state.SEGMENTED_MODE = getFlag(env, "SEGMENTED_MODE", "single");
+	_state.SEGMENTED_MODE = getFlag(env, "SEGMENTED_MODE", "fromdisk");
 	_state.DEBUG_MODE = getFlag(env, "DEBUG_MODE", false);
 
 	initLog({
@@ -94,7 +94,7 @@ function _ensureInit(envPath) {
 		MODE: "multi",
 		SEGMENTED_MODE: _state.SEGMENTED_MODE,
 	});
-	setLogBatch(_state.SEGMENTED_MODE === "batch");
+	setLogBatch(_state.SEGMENTED_MODE === "readdir");
 
 	_state.SRC = ARGV_SRC || env.INPUT_PATH || InputFile();
 }
@@ -111,7 +111,7 @@ function _ensureInit(envPath) {
  * @param {string}  [opts.envPath]          – .env file to read (default <engine>/../.env)
  * @param {string}  [opts.srcPath]          – input file or directory (default env INPUT_PATH or File/input/input.txt)
  * @param {boolean} [opts.writeSyllable]
- * @param {string}  [opts.segmentedMode]    – "single" | "batch"
+ * @param {string}  [opts.segmentedMode]    – "fromdisk" | "readdir" | "jsonbody"
  * @param {boolean} [opts.debugMode]
  */
 export function configure(opts = {}) {
@@ -133,7 +133,7 @@ export function configure(opts = {}) {
 	_state.SEGMENTED_MODE =
 		opts.segmentedMode !== undefined
 			? opts.segmentedMode
-			: getFlag(env, "SEGMENTED_MODE", "single");
+			: getFlag(env, "SEGMENTED_MODE", "fromdisk");
 
 	_state.DEBUG_MODE =
 		opts.debugMode !== undefined
@@ -145,7 +145,7 @@ export function configure(opts = {}) {
 		MODE: "multi",
 		SEGMENTED_MODE: _state.SEGMENTED_MODE,
 	});
-	setLogBatch(_state.SEGMENTED_MODE === "batch");
+	setLogBatch(_state.SEGMENTED_MODE === "readdir");
 
 	_state.SRC =
 		opts.srcPath !== undefined

@@ -1,5 +1,5 @@
-import { getBatchSize } from '../../Private/monoSyllabism/main/grapheme/loaded.js';
-export { getBatchSize };
+import { getFlushLines } from '../../Private/monoSyllabism/main/grapheme/loaded.js';
+export { getFlushLines };
 
 import { toBurmeseLine, toBurmeseLineWithPos } from '../../Private/Bridge/readable.js';
 

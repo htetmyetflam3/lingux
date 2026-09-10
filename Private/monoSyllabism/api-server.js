@@ -19,7 +19,7 @@
      POST /process  → srcPath only (engine-local file, e.g. your pdf
                       project's extracted .txt). Keyed.
      (outbound)     → after /fsm delivery the engine CONNECTS to the PDF
-                      praser (PRASER_ENDPOINT, default :5005) and performs
+                      praser (PRASER_ENDPOINT, default :5055) and performs
                       the handshake: it PRESENTS the delivered metadata at
                       /api/engine/collect; the praser cross-checks it
                       against the identity the uploader side bound and
@@ -33,7 +33,7 @@
        srcPath: "…optional path…",// text already on the server machine
        hash:    "…caller id…",    // optional — names outputs segmented_{hash}_*
        writeSyllable: true,       // WRITE_SYLLABLE
-       segmentedMode: "single",   // SEGMENTED_MODE
+       segmentedMode: "fromdisk",   // SEGMENTED_MODE
        debugMode:     false       // DEBUG_MODE
      }
 
@@ -305,7 +305,7 @@ async function collectFromPraser(record) {
 			configure({
 				srcPath: tmpFile,
 				writeSyllable: true,
-				segmentedMode: "single",
+				segmentedMode: "jsonbody",
 				debugMode: false,
 			});
 			const results = await grammarPipeline({ srcPath: tmpFile, hash: record.submitId });
