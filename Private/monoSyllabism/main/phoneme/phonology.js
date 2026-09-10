@@ -7,7 +7,7 @@ import {
 
 import { walkPos } from "../grapheme/traverser.js";
 import { PUNCTUATION, ALL_DIGITS } from "../../../../Tools/map/map-loader.js";
-import { burmeseToId } from "../../../../Tools/map/idmapper.js";
+import { burmeseToId } from "../../../../Tools/map/mapper/idmapper.js";
 
 const BURMESE_FULLSTOP = "။";
 

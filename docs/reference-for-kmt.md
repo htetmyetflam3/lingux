@@ -48,7 +48,7 @@ Tools/map/
 
 `idmapper.js` and `master.json` also sit in the map dir, but the JSC build does
 **not** use them: `idmapper.js` already has its real home at
-`Tools/map/idmapper.js`, and `master.json` belongs to the
+`Tools/map/mapper/idmapper.js`, and `master.json` belongs to the
 knowledge JSON folder (see Part 2).
 
 ### How it is built — 3 steps, 1 command, outputs land in the map dir

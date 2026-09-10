@@ -1,4 +1,4 @@
-import { asciiToId, burmeseToId } from '../../Tools/map/idmapper.js';
+import { asciiToId, burmeseToId } from '../../Tools/map/mapper/idmapper.js';
 
 const DELIMITER = '  ';
 
