@@ -119,6 +119,18 @@ function* walkLine(burmeseTokens, idTokens) {
 		const burmeseTok = burmeseTokens[pos];
 		const idTok = idTokens[pos];
 
+		/* Fullstop never walks the tree — skip it and inject the
+		   boundary token (same early-out shape as the skips below). */
+		if (burmeseTok === BURMESE_FULLSTOP) {
+			yield {
+				syllables: ["<eos>"],
+				ids: [idTok],
+				rawPos: ["eos"],
+			};
+			pos++;
+			continue;
+		}
+
 		if (!isTreeId(idTok)) {
 			const classified = classifyToken(burmeseTok);
 			if (classified) {
@@ -175,6 +187,7 @@ export async function* runTagger(unitGen, hash) {
 			if (
 				tag !== "?" &&
 				tag !== "pan" &&
+				tag !== "eos" &&
 				tag !== "en" &&
 				tag !== "count" &&
 				tag !== "phone" &&
