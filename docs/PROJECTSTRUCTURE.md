@@ -36,6 +36,8 @@ its mismatch no longer exists. Append new rows BELOW THE LINE. One fact per row.
 - `createFsmReadStream` (Bridge/streamline.js) yields at `\n` boundaries (bytes/20 chunks, 64-512KB for the 10MB frontend cap) — never splits Burmese mid-line. Do not "fix" the stream. HTTP JSON bodies are buffer-concatenated and decoded ONCE (per-chunk decode corrupts multi-byte chars).
 - Map dir source for bundler may exist outside the repo (e.g. Tools/build relative ../../mymap/); bundler and bytecode scripts resolve it if passed or found.
 - Project bootstrapping pipeline entry is `bootstrap.js` (`npm run bootstrap` / `Tools/build/initiate.js`); builds map bytecode, verifies encrypted JSON, builds engine trees, boots praser on :5055, builds SPA, and launches Express.
+- Cookie-skipping alone (`DEV_BYPASS_SESSION`, fenced master) never skips quota — `checkQuota` (hardcoded 3) still runs real: dev funnels every visitor onto users row id=1, the prod fence mints fresh real rows instead.
+- Quota allow/429 verdicts exist only with a DB. A sandbox `tried DB` throw is an unknown verdict, not enforcement — do not read DB-path sandbox failures as closed gates.
 
 ## The four API surfaces
 
