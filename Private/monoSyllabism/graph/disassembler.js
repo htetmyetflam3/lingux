@@ -1,4 +1,4 @@
-import { MyNormalize } from "../../../Tools/map/map-loader.js";
+import { MyNormalize } from "../mapper/map/map-loader.js";
 import { ensureNode, ensureStep, addPos } from "./shape.js";
 
 const STANDALONES = [

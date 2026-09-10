@@ -146,7 +146,7 @@ export async function loadSyllablesData(jsonPath = DataFile() + '/master.json') 
 // MAPPED-FILE LOADING (single home for syllable.mapped.txt parsing)
 // ============================================
 // Canonical reader — serves the build file-fallback (build.js runBuildPos)
-// and the runtime lookup (Tools/map/mapper/idmapper.js). Returns rows or null when the
+// and the runtime lookup (mapper/map/idmapper.js). Returns rows or null when the
 // file is absent (callers keep their own missing-file policy: build throws,
 // lookup warns). opts.skipComments (default true): lookup behavior; build
 // passes false to preserve its exact legacy parse. opts.onBadLine(n, line).

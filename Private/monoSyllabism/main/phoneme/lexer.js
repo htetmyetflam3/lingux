@@ -1,5 +1,5 @@
 import { walk } from "../grapheme/traverser.js";
-import { isTail, isBase, isLowercaseAZ, toBurmeseStr } from "../../../../Tools/map/map-loader.js";
+import { isTail, isBase, isLowercaseAZ, toBurmeseStr } from "../../mapper/map/map-loader.js";
 import {
 	segmentStart,
 	// eslint-disable-next-line no-unused-vars -- intentional unused variable in test/experimental code

@@ -1,5 +1,5 @@
 /* --- ruleEngine/writereadable.js --- */
-import { toBurmeseStr } from '../../Tools/map/map-loader.js';
+import { toBurmeseStr } from '../monoSyllabism/mapper/map/map-loader.js';
 
 export function formatResolvedLine(lineResult) {
   const parts = [];

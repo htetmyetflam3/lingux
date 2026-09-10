@@ -187,7 +187,7 @@ async function main() {
 
 	// Test map-loader
 	try {
-		const mapLoader = await import("./Tools/map/map-loader.js");
+		const mapLoader = await import("./Private/monoSyllabism/mapper/map/map-loader.js");
 		const normalized = mapLoader.MyNormalize("ကတ်");
 		console.log(`  ${c.green}✓${c.reset} Map runtime verified (MyNormalize('ကတ်') -> '${normalized}')`);
 	} catch (err) {

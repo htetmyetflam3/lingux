@@ -1,6 +1,6 @@
 import path from 'path';
-import { TreeFile } from '../../../Private/Bridge/path.js';
-import { loadMappedRows } from '../../../Private/monoSyllabism/main/grapheme/loaded.js';
+import { TreeFile } from '../../../Bridge/path.js';
+import { loadMappedRows } from '../../main/grapheme/loaded.js';
 
 let _asciiToId = null;
 let _idToAscii = null;

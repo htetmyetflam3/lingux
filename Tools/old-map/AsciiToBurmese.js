@@ -1,4 +1,4 @@
-import { toBurmeseStr } from '../../Tools/map/map-loader.js';
+import { toBurmeseStr } from '../../Private/monoSyllabism/mapper/map/map-loader.js';
 
 const DELIMITER = '  ';
 
