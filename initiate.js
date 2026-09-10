@@ -187,7 +187,7 @@ async function main() {
 
 	// Test map-loader
 	try {
-		const mapLoader = await import("./Private/Syllable/mapper/map/map-loader.js");
+		const mapLoader = await import("./Private/monoSyllabism/mapper/map/map-loader.js");
 		const normalized = mapLoader.MyNormalize("ကတ်");
 		console.log(`  ${c.green}✓${c.reset} Map runtime verified (MyNormalize('ကတ်') -> '${normalized}')`);
 	} catch (err) {
@@ -199,7 +199,7 @@ async function main() {
 	// STEP 2: Boost Syllable Engine & Build Trees (Syllable.initS.js)
 	// ─────────────────────────────────────────────────────────────────────────
 	console.log(`\n${c.bold}${c.yellow}[Step 2/5] Boosting Syllable.initS.js & Building Trees...${c.reset}`);
-	const { runBuildPhase } = await import("./Private/Syllable/Syllable.initS.js");
+	const { runBuildPhase } = await import("./Private/monoSyllabism/Syllable.initS.js");
 	try {
 		await runBuildPhase();
 		console.log(`  ${c.green}✓${c.reset} Syllable & POS trees generated successfully.`);

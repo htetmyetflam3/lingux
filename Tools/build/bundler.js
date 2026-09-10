@@ -18,7 +18,7 @@
  *   node Tools/build/bundler.js [--src <readable-map-dir>] [--out bundle.js]
  *
  * Both flags are optional. Defaults keep everything inside the map dir:
- *   --src  Private/Syllable/mapper/map   (the in-repo map dir)
+ *   --src  Private/monoSyllabism/mapper/map   (the in-repo map dir)
  *   --out  <map-dir>/bundle.js           (written next to the sources)
  * Pass --src only to build from a different readable map dir.
  */

@@ -42,7 +42,7 @@ its mismatch no longer exists. Append new rows BELOW THE LINE. One fact per row.
 | Surface | Contract |
 | --- | --- |
 | Site (`gateway/api/`) | `POST /api/submit` → `{formId, submitId, text, status}` (session-gated) · `/api/result` by formId+userId · `GET /api/hidden/raw/:submitId` (keyed txt stream, no-store) |
-| Engine (`Private/Syllable/api-server.js`) | `POST /fsm` (keyed, hidden's payload; TRIGGERS the collect) · `GET /result/:hash` (keyed) · `POST /process` (keyed, srcPath only) · `GET /health` (open) → `{hash, syllable positions}` |
+| Engine (`Private/monoSyllabism/api-server.js`) | `POST /fsm` (keyed, hidden's payload; TRIGGERS the collect) · `GET /result/:hash` (keyed) · `POST /process` (keyed, srcPath only) · `GET /health` (open) → `{hash, syllable positions}` |
 | Engine read (`Ginit.js` + `Bridge/readFromApi.js`) | hash → filename → streamed file → text |
 | PRASER (`PRASER/Python/module/api.py`) | Flask on 127.0.0.1:5055: `/health` · `/api/preview` (job_id + content) · `/api/content` · `/api/finalize` · `/api/engine/bind` + `/api/engine/collect` (handshake) |
 

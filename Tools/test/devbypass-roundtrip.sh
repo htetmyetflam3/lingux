@@ -69,7 +69,7 @@ code=$(curl -s -o /dev/null "$BASE/api/hidden/raw/$submit" -H "X-API-Key: wrong"
 check "bad key -> 403" 403 "$code"
 
 echo "== 7) Site -> Private engine bridge (file submissions) =="
-# Requires the engine api-server running: PORT=9000 node Private/Syllable/api-server.js
+# Requires the engine api-server running: PORT=9000 node Private/monoSyllabism/api-server.js
 node - <<'EOF'
 import fs from 'fs';
 let bad = 0;
@@ -203,7 +203,7 @@ check "engine /fsm: localhost:3000 origin passes gate" 400 "$(code -X POST http:
 check "engine /process without key -> 403" 403 "$(code -X POST http://127.0.0.1:9000/process -H 'Content-Type: application/json' -d '{"srcPath":"/etc/hostname"}')"
 
 # caller-IP gate: second engine instance whose allowlist EXCLUDES loopback
-PORT=9005 ENGINE_ALLOWED_IPS=10.0.0.99 node "$ROOT/Private/Syllable/api-server.js" >/tmp/eng9005.log 2>&1 &
+PORT=9005 ENGINE_ALLOWED_IPS=10.0.0.99 node "$ROOT/Private/monoSyllabism/api-server.js" >/tmp/eng9005.log 2>&1 &
 EPID=$!
 for i in 1 2 3 4 5 6; do curl -s -o /dev/null http://127.0.0.1:9005/health && break; sleep 0.5; done
 check "engine /fsm: caller ip not allow-listed -> 403" 403 "$(code -X POST http://127.0.0.1:9005/fsm -H 'Content-Type: application/json' -H "X-API-Key: $KEYV" -d '{}')"

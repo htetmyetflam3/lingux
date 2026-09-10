@@ -11,7 +11,7 @@
 - Created `initiate.js` and `Tools/build/initiate.js` end-to-end setup and project bootstrapping script (`npm run initiate` / `npm start`).
 - Automated pipeline sequence: verifies encrypted knowledge JSON (`master.json.enc`), builds map binary bytecode (`map-runtime.jsc`) from candidate map source paths (including `../../mymap/`), generates syllable lookup + POS trees via `Syllable.initS.js`, boots PRASER Python Flask API (`127.0.0.1:5055`), builds SPA via Vite & Sass into `Site/Public/STATIC/frontend`, and boots Express server (`Site/index.js`) under nodemon / node supervision.
 ### Fixed
-- Fixed recursive directory creation in `Private/Syllable/builder/build.js` and `_writer.js` so `runBuildPhase()` creates target tree output directories without missing-path errors.
+- Fixed recursive directory creation in `Private/monoSyllabism/builder/build.js` and `_writer.js` so `runBuildPhase()` creates target tree output directories without missing-path errors.
 - Fixed Sass Bootstrap maps import in `Site/Public/STATIC/Build/scss/main.scss` for smooth Vite bundling.
 
 ### Added (defense-in-depth BEHIND the session boundary — validator + flood dam)

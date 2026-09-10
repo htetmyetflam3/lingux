@@ -1,10 +1,10 @@
 import { OutputFile } from "./path.js";
 import { bridgeStart, bridgeEnd, bridgeLineCount } from "./logen.js";
-import { createStreamWriter } from "../Syllable/mapper/context/_writer.js";
-import { getBatchSize } from "../Syllable/mapper/context/_file.js";
-import * as BurmeseTranslator from "../Syllable/mapper/generator/BurmeseTranslator.js";
-import { runTagger } from "../Syllable/main/breaker/tagger.js";
-import { runRuleEngine } from "../Syllable/main/endofmain.js";
+import { createStreamWriter } from "../monoSyllabism/mapper/context/disk.js";
+import { getBatchSize } from "../monoSyllabism/mapper/context/memory.js";
+import * as BurmeseTranslator from "../monoSyllabism/mapper/generator/BurmeseTranslator.js";
+import { runTagger } from "../monoSyllabism/main/phoneme/phonology.js";
+import { runRuleEngine } from "../monoSyllabism/main/endofmain.js";
 
 class Hook {
 	constructor(name) {
@@ -28,37 +28,55 @@ class BridgeHooks {
 	}
 }
 
+/* \n-assembler for the syllable-only path (bridgeSyllable).
+   Pieces arrive √-suffixed from the segmentor — pure concat, no
+   array, no join. The tagger path uses fullstopHolder. */
 async function* toLineStrings(seg) {
-	let buffer = [];
+	let line = "";
 	for await (const item of seg) {
 		if (item === "\n") {
-			yield buffer.join("√");
-			buffer = [];
+			yield line;
+			line = "";
 			continue;
 		}
-		const s =
-			item && typeof item === "object" && item.syllable !== undefined
-				? item.syllable
-				: typeof item === "string"
-					? item
-					: null;
-		if (s !== null) buffer.push(s);
+		if (typeof item !== "string") continue;
+		line += item;
 	}
-	if (buffer.length) yield buffer.join("√");
+	if (line.length) yield line;
 }
 
-async function* batchTagger(lineGen, batchSize, hash) {
-	let batch = [];
-	for await (const lineStr of lineGen) {
-		batch.push(lineStr);
-		if (batch.length >= batchSize) {
-			yield* runTagger(batch, hash);
-			batch = [];
+/* Holder behind the segmentor (tagger path only): pieces arrive
+   √-suffixed from the segmentor — pure concat, no array, no join.
+   A unit completes at the SECOND ။ core (suffix stripped before the
+   test, so a ။ inside a masked {...} span can't split early). \n
+   becomes a " √" barrier (never a boundary). Trailing fragment
+   without two stops still emits at EOF; a barrier-only tail is out. */
+async function* fullstopHolder(seg) {
+	let unit = "";
+	let stops = 0;
+	let hasContent = false;
+	for await (const item of seg) {
+		if (item === "\n") {
+			unit += " √";
+			continue;
+		}
+		if (typeof item !== "string") continue;
+		unit += item;
+		const core = item.endsWith("√") ? item.slice(0, -1) : item;
+		if (core === "။") {
+			stops++;
+			hasContent = true;
+			if (stops >= 2) {
+				yield unit;
+				unit = "";
+				stops = 0;
+				hasContent = false;
+			}
+		} else if (core.trim() !== "") {
+			hasContent = true;
 		}
 	}
-	if (batch.length) {
-		yield* runTagger(batch, hash);
-	}
+	if (unit && hasContent) yield unit;
 }
 
 export async function bridge(seg, writeFlags, hash, inputPath) {
@@ -85,8 +103,8 @@ export async function bridge(seg, writeFlags, hash, inputPath) {
 		});
 	}
 
-	const lineGen = toLineStrings(seg);
-	const taggerGen = batchTagger(lineGen, batchSize, hash);
+	const unitGen = fullstopHolder(seg);
+	const taggerGen = runTagger(unitGen, hash);
 	const kernelGen = runRuleEngine(taggerGen, hash);
 
 	for await (const lineResult of kernelGen) {
@@ -116,7 +134,10 @@ export async function bridge(seg, writeFlags, hash, inputPath) {
 /* Syllable-only sibling of bridge().
    Same generator series, one link long: the writer sits at the
    segmentor instead of after the kernel, so the tagger and the rule
-   engine are never constructed. Chosen by flag in runMain(), so this
+   engine are never constructed. Assembly differs on purpose: \n lines
+   here (toLineStrings) vs two-fullstop units in bridge()
+   (fullstopHolder) — the tagger needs sentence boundaries, the
+   syllable file mirrors input lines. Chosen by flag in runMain(), so this
    is not a second pass — it is the only pass when POS was not asked
    for. Whitespace is filtered here and only here: the √ line keeps
    its space tokens, which is what any later POS chain needs as word

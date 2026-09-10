@@ -6,7 +6,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { OutputFile, joinPath } from '../Bridge/path.js';
-import { readFileContent } from '../Bridge/readFromApi.js';
+import { readFileContent } from '../Bridge/streamline.js';
 
 /**
  * Accept a hash, build the segmented_{hash}_raw_pos.txt path,

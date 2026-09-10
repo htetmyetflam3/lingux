@@ -12,16 +12,16 @@ one lives, the build steps, and what the encrypted JSON needs to work.
 
 | You used to have | Replaced by | Exact location |
 |---|---|---|
-| Readable map dir inside `mapper/` (5 JS files) | **`map-runtime.jsc`** — one locked binary file | `Private/Syllable/mapper/map/map-runtime.jsc` |
-| — | Loader that reads the `.jsc` | `Private/Syllable/mapper/map/map-loader.js` |
+| Readable map dir inside `mapper/` (5 JS files) | **`map-runtime.jsc`** — one locked binary file | `Private/monoSyllabism/mapper/map/map-runtime.jsc` |
+| — | Loader that reads the `.jsc` | `Private/monoSyllabism/mapper/map/map-loader.js` |
 | Plain `master.json` | **`master.json.enc`** — locked JSON | `Private/Engine/_knowledge/json/master.json.enc` |
 | — | Key holder that opens the `.enc` | `Private/Bridge/secure.js` |
 
 Everything map-related now lives in **one self-contained dir**:
-`Private/Syllable/mapper/map/` — sources, loader, and every build output.
+`Private/monoSyllabism/mapper/map/` — sources, loader, and every build output.
 
 ```
-Private/Syllable/mapper/map/
+Private/monoSyllabism/mapper/map/
 ├── sourceMap.js  _function.js  sourceMapper.js  _encode.js  _decode.js   ← readable sources (placeholder mirror)
 ├── idmapper.js  master.json                                                    ← reference copies (not used by the build)
 ├── map-loader.js               ← the loader the engine imports
@@ -48,7 +48,7 @@ Private/Syllable/mapper/map/
 
 `idmapper.js` and `master.json` also sit in the map dir, but the JSC build does
 **not** use them: `idmapper.js` already has its real home at
-`Private/Syllable/mapper/idmapper.js`, and `master.json` belongs to the
+`Private/monoSyllabism/mapper/idmapper.js`, and `master.json` belongs to the
 knowledge JSON folder (see Part 2).
 
 ### How it is built — 3 steps, 1 command, outputs land in the map dir
@@ -101,7 +101,7 @@ location — it works no matter which directory you run Node from.
 ### Test run — done today from the placeholder map dir
 
 - Build: `node Tools/build/build-bytecode.js` → OK, all 4 outputs written into
-  `Private/Syllable/mapper/map/` (built on Node v22.22.3, `.jsc` = 54.39 KB)
+  `Private/monoSyllabism/mapper/map/` (built on Node v22.22.3, `.jsc` = 54.39 KB)
 - Loader from repo root: OK, 31 exports, `ကတ်` → `Am` → `ကတ်` round trip
 - Loader from a **different working directory** (`/tmp`): OK — loader is
   location-independent
@@ -150,8 +150,8 @@ node Tools/build/build-secure.js
 | 1 | `Private/Engine/_knowledge/json/master.json.enc` | the locked data |
 | 2 | `Private/Bridge/secure.js` | holds the matching key; exports `readSecureText` / `readSecureJson` |
 | 3 | `Private/Bridge/path.js` | the `DataFile()` / `MasterFile()` constants that say where the JSON folder is |
-| 4 | `Private/Syllable/builder/_build.js` | `loadSyllablesData()` — reads the syllables when the tree is rebuilt |
-| 5 | `Private/Syllable/helper/utilities.js` | `parseJson()` — general locked-JSON reader |
+| 4 | `Private/monoSyllabism/builder/_build.js` | `loadSyllablesData()` — reads the syllables when the tree is rebuilt |
+| 5 | `Private/monoSyllabism/helper/utilities.js` | `parseJson()` — general locked-JSON reader |
 
 The `secure.js` file must be the one that was built **together with** this
 `.enc` — a different `secure.js` carries a different key and will not open it.
@@ -204,7 +204,7 @@ runBuild → loadSyllablesData(master.json)
    `Private/Bridge/secure.js` — update the `SECURE_MODULE` constant in both
    scripts before running them here.
 3. **POS build writes plaintext.** `runBuildPos()` in
-   `Private/Syllable/builder/build.js` saves cleaned entries back to
+   `Private/monoSyllabism/builder/build.js` saves cleaned entries back to
    `master.json` as **plain text**, right next to the `.enc`. Delete or
    re-encrypt it after a POS build.
 4. **Node version.** The committed `map-runtime.jsc` runs on Node v22.22.3
@@ -217,11 +217,11 @@ runBuild → loadSyllablesData(master.json)
 ## Quick commands
 
 ```bash
-# Rebuild the map binary — outputs land in Private/Syllable/mapper/map/
+# Rebuild the map binary — outputs land in Private/monoSyllabism/mapper/map/
 node Tools/build/build-bytecode.js
 
 # Try the map binary (the way the engine uses it)
-node --input-type=module -e "import * as m from './Private/Syllable/mapper/map/map-loader.js'; console.log(m.MyNormalize('ကတ်'))"
+node --input-type=module -e "import * as m from './Private/monoSyllabism/mapper/map/map-loader.js'; console.log(m.MyNormalize('ကတ်'))"
 
 # Read the locked JSON (the way the engine uses it)
 node --input-type=module -e "
@@ -240,10 +240,10 @@ node Tools/build/encrypt-data.js Private/Engine/_knowledge/json/master.json
 *Changes that came with this doc:*
 
 - The placeholder map dir moved from `Tools/build/map/` to its original home:
-  `Private/Syllable/mapper/map/` (its internal import paths were fixed for the
+  `Private/monoSyllabism/mapper/map/` (its internal import paths were fixed for the
   new location).
 - The loader `Private/Bridge/jsc.js` was renamed to
-  `Private/Syllable/mapper/map/map-loader.js` and now resolves `map-runtime.jsc`
+  `Private/monoSyllabism/mapper/map/map-loader.js` and now resolves `map-runtime.jsc`
   **next to itself** (works from any cwd, no longer depends on `Bridge/path.js`).
 - All importers were rewired to the new loader — including
   `Server/gateway/generator/string.js`, which previously pointed at the private
