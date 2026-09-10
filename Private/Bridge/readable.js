@@ -40,9 +40,10 @@ export function toBurmeseLineWithPos(lineResult, posField = 'finalPos') {
   const parts = [];
   for (const token of lineResult.tokens ?? []) {
     const burmese = getSyllables(token).join('');
-    /* Tagger-injected boundary: bare <eos>, never tagged. */
-    if (burmese === '<eos>') {
-      parts.push('<eos>');
+    /* Tagger-injected boundary (<eos> suffixed behind the fullstop,
+       the way √ is suffixed behind syllables): prints bare, never tagged. */
+    if (burmese.endsWith('<eos>')) {
+      parts.push(burmese);
       continue;
     }
     const pos = token[posField] ?? '?';

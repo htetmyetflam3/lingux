@@ -119,11 +119,12 @@ function* walkLine(burmeseTokens, idTokens) {
 		const burmeseTok = burmeseTokens[pos];
 		const idTok = idTokens[pos];
 
-		/* Fullstop never walks the tree — skip it and inject the
-		   boundary token (same early-out shape as the skips below). */
+		/* Fullstop never walks the tree — skip it, keep the surface,
+		   and suffix <eos> directly behind (the way the segmentor
+		   suffixes √ behind each syllable). No tag, ever. */
 		if (burmeseTok === BURMESE_FULLSTOP) {
 			yield {
-				syllables: ["<eos>"],
+				syllables: [BURMESE_FULLSTOP + "<eos>"],
 				ids: [idTok],
 				rawPos: ["eos"],
 			};
