@@ -1,7 +1,7 @@
 /* --- main/phoneme/init.js --- */
 import { readAndPrepare } from '../../mapper/object/BurmeseToAscii.js';
 import { runSegmentor } from './lexer.js';
-import { setHash } from '../../mapper/context/store.js';
+import { setHash } from '../../../Bridge/store.js';
 import { pipelineStart, pipelineError } from '../../../Bridge/logen.js';
 
 let currentHash = null;

@@ -1,8 +1,8 @@
 import { OutputFile } from "./path.js";
 import { bridgeStart, bridgeEnd, bridgeLineCount } from "./logen.js";
-import { createStreamWriter } from "../monoSyllabism/mapper/context/store.js";
-import { getBatchSize } from "../monoSyllabism/mapper/context/sizer.js";
-import * as BurmeseTranslator from "../monoSyllabism/mapper/generator/BurmeseTranslator.js";
+import { createStreamWriter } from "./store.js";
+import { getBatchSize } from "../monoSyllabism/main/grapheme/loaded.js";
+import { toBurmeseLine, toBurmeseLineWithPos, toSyllableLine } from "./readable.js";
 import { runTagger } from "../monoSyllabism/main/phoneme/phonology.js";
 import { runRuleEngine } from "../monoSyllabism/main/endofmain.js";
 
@@ -90,7 +90,7 @@ export async function bridge(seg, writeFlags, hash, inputPath) {
 	if (writeFlags.syllable) {
 		writers.syllable = createStreamWriter(OutputFile(), "syllable", batchSize);
 		hooks.syllable.tap((line) => {
-			writers.syllable.writeLine([BurmeseTranslator.toBurmeseLine(line)]);
+			writers.syllable.writeLine([toBurmeseLine(line)]);
 		});
 	}
 
@@ -98,7 +98,7 @@ export async function bridge(seg, writeFlags, hash, inputPath) {
 		writers.rawPos = createStreamWriter(OutputFile(), "raw_pos", batchSize);
 		hooks.rawPos.tap((line) => {
 			writers.rawPos.writeLine([
-				BurmeseTranslator.toBurmeseLineWithPos(line, "rawPos"),
+				toBurmeseLineWithPos(line, "rawPos"),
 			]);
 		});
 	}
@@ -155,12 +155,7 @@ export async function bridgeSyllable(seg, writeFlags, hash, inputPath) {
 
 	for await (const lineStr of toLineStrings(seg)) {
 		if (writer) {
-			writer.writeLine([
-				lineStr
-					.split("√")
-					.filter((t) => t.trim())
-					.join("  "),
-			]);
+			writer.writeLine([toSyllableLine(lineStr)]);
 		}
 		lineCount++;
 		bridgeLineCount(1);

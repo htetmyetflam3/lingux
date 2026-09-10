@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import { StringDecoder } from 'node:string_decoder';
 import { resolvePath } from './path.js';
-import { splitBuffer, getReadChunkSize } from '../monoSyllabism/mapper/context/sizer.js';
+import { splitBuffer, getReadChunkSize } from '../monoSyllabism/main/grapheme/loaded.js';
 
 export const CHUNK_SIZE = 256 * 1024; // 256 KB stream default
 

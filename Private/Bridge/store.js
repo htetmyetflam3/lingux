@@ -3,8 +3,8 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import fs from 'fs';
-import { writerStart, writerEnd, writerWrote, getDateTimeHash } from '../../../Bridge/logen.js';
-import { OutputFile, TreeFile, joinPath } from '../../../Bridge/path.js';
+import { writerStart, writerEnd, writerWrote, getDateTimeHash } from './logen.js';
+import { OutputFile, TreeFile, joinPath } from './path.js';
 let _sessionHash = null;
 export function getHash() {
   if (!_sessionHash) _sessionHash = getDateTimeHash();

@@ -23,7 +23,7 @@ import { init } from "./main/phoneme/init.js";
 import { runBuild, runBuildPos } from "./graph/build.js";
 import { bridge, bridgeSyllable } from "../Bridge/bridge.js";
 import { resolveInputs, InputFile, resetWorkspace } from "../Bridge/path.js";
-import { setHash, resetHash } from "./mapper/context/store.js";
+import { setHash, resetHash } from "../Bridge/store.js";
 import { getDateTimeHash } from "../Bridge/logen.js";
 import { invokeWithHash, hashKind } from "../Engine/Ginit.js";
 

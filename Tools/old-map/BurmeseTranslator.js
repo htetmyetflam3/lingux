@@ -1,32 +1,9 @@
-import { getBatchSize } from '../context/sizer.js';
+import { getBatchSize } from '../../Private/monoSyllabism/main/grapheme/loaded.js';
 export { getBatchSize };
 
+import { toBurmeseLine, toBurmeseLineWithPos } from '../../Private/Bridge/readable.js';
+
 const DELIMITER = '  ';
-
-function getSyllables(token) {
-  return token.syllables ?? [];
-}
-
-// ── Formatters ──
-
-export function toBurmeseLine(lineResult) {
-  const parts = [];
-  for (const token of lineResult.tokens ?? []) {
-    parts.push(...getSyllables(token));
-  }
-  return parts.join(DELIMITER);
-}
-
-export function toBurmeseLineWithPos(lineResult, posField = 'finalPos') {
-  const parts = [];
-  for (const token of lineResult.tokens ?? []) {
-    const burmese = getSyllables(token).join('');
-    const pos = token[posField] ?? '?';
-    parts.push(`${burmese}{${pos}}`);
-  }
-  if (lineResult.isEos) parts.push('<EOS>{eos}');
-  return parts.join(DELIMITER);
-}
 
 export function toBurmeseCluster(lineResult) {
   return toBurmeseLine(lineResult);
