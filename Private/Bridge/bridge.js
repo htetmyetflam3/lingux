@@ -2,7 +2,7 @@ import { OutputFile } from "./path.js";
 import { bridgeStart, bridgeEnd, bridgeLineCount } from "./logen.js";
 import { createStreamWriter } from "./store.js";
 import { getBatchSize } from "../monoSyllabism/main/grapheme/loaded.js";
-import { toBurmeseLine, toBurmeseLineWithPos, toSyllableLine } from "./readable.js";
+import { toBurmeseLine, toBurmeseLineWithPos, toLineStrings } from "./readable.js";
 import { runTagger } from "../monoSyllabism/main/phoneme/phonology.js";
 import { runRuleEngine } from "../monoSyllabism/main/endofmain.js";
 
@@ -26,23 +26,6 @@ class BridgeHooks {
 		this.syllable = new Hook("syllable");
 		this.rawPos = new Hook("rawPos");
 	}
-}
-
-/* \n-assembler for the syllable-only path (bridgeSyllable).
-   Pieces arrive √-suffixed from the segmentor — pure concat, no
-   array, no join. The tagger path uses fullstopHolder. */
-async function* toLineStrings(seg) {
-	let line = "";
-	for await (const item of seg) {
-		if (item === "\n") {
-			yield line;
-			line = "";
-			continue;
-		}
-		if (typeof item !== "string") continue;
-		line += item;
-	}
-	if (line.length) yield line;
 }
 
 /* Holder behind the segmentor (tagger path only): pieces arrive
@@ -131,42 +114,33 @@ export async function bridge(seg, writeFlags, hash, inputPath) {
 	};
 }
 
-/* Syllable-only sibling of bridge().
-   Same generator series, one link long: the writer sits at the
-   segmentor instead of after the kernel, so the tagger and the rule
-   engine are never constructed. Assembly differs on purpose: \n lines
-   here (toLineStrings) vs two-fullstop units in bridge()
-   (fullstopHolder) — the tagger needs sentence boundaries, the
+/* Syllable-only sibling of bridge(). Thin by design: the writer consumes
+   the segmentor generator directly (store.js consumeSyllable, formatting
+   in readable.js) — the tagger and the rule engine are never constructed.
+   Assembly differs on purpose: \n lines here vs two-fullstop units in
+   bridge() (fullstopHolder) — the tagger needs sentence boundaries, the
    syllable file mirrors input lines. Chosen by flag in runMain(), so this
    is not a second pass — it is the only pass when POS was not asked
-   for. Whitespace is filtered here and only here: the √ line keeps
-   its space tokens, which is what any later POS chain needs as word
-   barriers. */
+   for. Whitespace is filtered in toSyllableLine and only there. */
 export async function bridgeSyllable(seg, writeFlags, hash, inputPath) {
 	bridgeStart({ file: inputPath, hash });
 
 	const batchSize = getBatchSize(inputPath);
-	let writer = null;
+	let syllablePath = null;
 	let lineCount = 0;
 
 	if (writeFlags.syllable) {
-		writer = createStreamWriter(OutputFile(), "syllable", batchSize);
-	}
-
-	for await (const lineStr of toLineStrings(seg)) {
-		if (writer) {
-			writer.writeLine([toSyllableLine(lineStr)]);
-		}
-		lineCount++;
-		bridgeLineCount(1);
-	}
-
-	let syllablePath = null;
-	if (writer) {
-		writer.flush();
+		const writer = createStreamWriter(OutputFile(), "syllable", batchSize);
+		lineCount = await writer.consumeSyllable(seg);
 		syllablePath = writer.close();
+	} else {
+		/* No writer: still drain the segmentor so lineCount stays honest. */
+		for await (const line of toLineStrings(seg)) {
+			if (typeof line === "string") lineCount++;
+		}
 	}
 
+	bridgeLineCount(lineCount);
 	bridgeEnd({ file: inputPath, lineCount });
 
 	return { syllablePath, rawPosPath: null, lineCount, hash };

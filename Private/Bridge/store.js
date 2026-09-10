@@ -5,6 +5,7 @@
 import fs from 'fs';
 import { writerStart, writerEnd, writerWrote, getDateTimeHash } from './logen.js';
 import { OutputFile, TreeFile, joinPath } from './path.js';
+import { toLineStrings, toSyllableLine } from './readable.js';
 let _sessionHash = null;
 export function getHash() {
   if (!_sessionHash) _sessionHash = getDateTimeHash();
@@ -62,13 +63,25 @@ export function createStreamWriter(outputDir = OutputFile(), suffix = '', batchS
     fs.appendFileSync(outputPath, buffer, 'utf8');
     buffer = '';
   }
+  function writeLine(syllables) {
+    buffer += syllables.join('  ') + '\n';
+    lineCount++;
+    if (lineCount % batchSize === 0) flush();
+  }
+  /* Syllable-only path: the writer consumes the segmentor generator
+     directly — assemble each \n line (readable.js) and write it. */
+  async function consumeSyllable(seg) {
+    let n = 0;
+    for await (const lineStr of toLineStrings(seg)) {
+      writeLine([toSyllableLine(lineStr)]);
+      n++;
+    }
+    return n;
+  }
   return {
     outputPath,
-    writeLine(syllables) {
-      buffer += syllables.join('  ') + '\n';
-      lineCount++;
-      if (lineCount % batchSize === 0) flush();
-    },
+    writeLine,
+    consumeSyllable,
     flush,
     close() {
       flush();
