@@ -78,6 +78,18 @@ Two path modules (`Site/Public/_file/paths.js` vs Engine `Bridge/path.js`) · tw
 `PRASER_ENDPOINT` (default :5055) · `PRASER_KEY` (machine-boundary) ·
 `PRASER_MAX_UPLOAD_MB`/`PRASER_MAX_STREAM_MB`/`PRASER_MAX_MEMBER_MB`
 
+## Bypass verdicts (live-verified)
+
+Curl upload (`POST /api/submit`, no DB): dev + master only → 202 + submitId ·
+prod + master only → 500 (master fenced) · dev + QUOTA only → 500 at
+cookieGenerator (dies before the free quota) · dev + four specifics → 202.
+
+Stub-MySQL chain (cookie → header → cookieDBCheck → checkQuota): prod + QUOTA
+→ ALLOW 999, counter frozen · prod + SESSION, same visitor ×4 → ALLOW ×3 then
+LIMIT (fence mints fresh real rows; exhausted rows still 429) · dev + SESSION
+→ LIMIT on shared users row id=1 (cookie-skip ≠ quota-skip) · dev + master →
+ALLOW 999.
+
 ---
 
 Note: when asked to open a PR, write down the wrong assumptions YOU had that
