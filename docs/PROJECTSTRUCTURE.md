@@ -24,7 +24,7 @@ its mismatch no longer exists. Append new rows BELOW THE LINE. One fact per row.
 - `.env` is a placeholder — no security essays.
 - Some seams are unwired on purpose. Ask before completing one.
 - PRASER output shape: `preview` carries `content` (one plain text, no banner/markers/HTML) + plain `changes` pairs; docx jobs finalize txt-only.
-- `DEV_BYPASS_*` flags exist for agents that cannot use the interactive UI (curl-style testing). They open headerCheck + the session gates together, and are hard-off under `NODE_ENV=production`. Flags on ≠ production posture.
+- `DEV_BYPASS_*` flags exist for agents that cannot use the interactive UI (curl-style testing). Only `DEV_BYPASS_SESSION` is fenced to dev — it fail-closes under `NODE_ENV=production` (boot banner: IGNORED) and in dev it alone opens headerCheck (bot UAs included) + cookieGenerator + cookieDBCheck together. `DEV_BYPASS_QUOTA` / `DEV_BYPASS_IP` / `DEV_BYPASS_HEADER` carry no env guard: QUOTA makes the request/quota layer DB-free, IP/HEADER skip the MM-country check (IP also satisfies cookieDBCheck). Bot-403 runs before IP/HEADER, so curl is still rejected in prod with every flag on; all flags off behaves identically in both envs. Flags on ≠ production posture.
 - Filename creation lives in the FRONTEND (`responses.js` → `{submitId}{ext}`); userId + session identity are validators, not optional metadata.
 - Site → Engine delivery is a metadata BODY (`{submitId, validators, sha/bytes}` → keyed POST /fsm); the TEXT arrives via the engine-initiated praser collect. `readFileContent`/`invokeWithHash` are engine-internal (engine cwd); `srcPath` is same-machine-only.
 - The engine api-server must run with the repo root as cwd; the Site reads results back via the same-repo `invokeWithHash` import. Cross-deployment HTTP pull is NOT wired — do not assume it.
@@ -69,8 +69,8 @@ Two path modules (`Site/Public/_file/paths.js` vs Engine `Bridge/path.js`) · tw
 ## Env flags (what the code reads)
 
 `SKIP_BUILD` · `PORT`/`API_PORT` · `SESSION_SECRET`/`COOKIE_SECRET` · `DB_*` ·
-`DEV_BYPASS_QUOTA` / `DEV_BYPASS_IP` / `DEV_BYPASS_HEADER` / `DEV_BYPASS_SESSION` (dev only,
-hard-off in production) · `UPLOAD_MAX_MB` ·
+`DEV_BYPASS_SESSION` (dev only, hard-off in production) · `DEV_BYPASS_QUOTA` /
+`DEV_BYPASS_IP` / `DEV_BYPASS_HEADER` (no env guard — live wherever set) · `UPLOAD_MAX_MB` ·
 `FSM_ENDPOINT`/`FSM_KEY` · `ENGINE_ENDPOINT`/`ENGINE_KEY`/`ENGINE_TIMEOUT_MS` ·
 `PRASER_ENDPOINT` (default :5055) · `PRASER_KEY` (machine-boundary) ·
 `PRASER_MAX_UPLOAD_MB`/`PRASER_MAX_STREAM_MB`/`PRASER_MAX_MEMBER_MB`
