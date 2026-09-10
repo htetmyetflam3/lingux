@@ -1,11 +1,14 @@
 import crypto from 'crypto';
+import { agentUploadEnabled } from '../cookie/devbypass.js';
 
 // Dev bypass: with DEV_BYPASS_QUOTA=true (already in .env) the whole
 // request layer runs DB-free — the /api/submit chain can be developed and
 // tested end-to-end without MySQL. Disk output (.output/txt, .output/original,
 // quarantine) still happens exactly as in production; only the users /
 // submissions writes are skipped.
-const devBypass = () => process.env.DEV_BYPASS_QUOTA === 'true';
+// ALLOW_AGENT_UPLOAD=true (the master) engages the same DB-free path.
+const devBypass = () =>
+  process.env.DEV_BYPASS_QUOTA === 'true' || agentUploadEnabled();
 
 export function createRequest({ pool }) {
   return {
@@ -57,7 +60,7 @@ export function createRequest({ pool }) {
       return rows[0];
     },
     async checkQuota({ userId }) {
-      if (process.env.DEV_BYPASS_QUOTA === 'true') {
+      if (devBypass()) {
         return { allowed: true, remaining: 999 };
       }
       const today = new Date().toISOString().split('T')[0];
@@ -96,7 +99,7 @@ export function createRequest({ pool }) {
       };
     },
     async incrementQuota({ userId }) {
-      if (process.env.DEV_BYPASS_QUOTA === 'true') return;
+      if (devBypass()) return;
       await pool.query(
         'UPDATE users SET daily_quota_used = daily_quota_used + 1 WHERE id = ?',
         [userId],

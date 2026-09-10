@@ -5,7 +5,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { createOrUpdateCookie } from '../db/cookie.js';
 import { encodeCookie, decodeCookie } from './codec.js';
-import { sessionBypassEnabled } from './devbypass.js';
+import { sessionBypassEnabled, agentUploadEnabled } from './devbypass.js';
 const logDir = LOGS_DIR;
 fs.mkdirSync(logDir, { recursive: true });
 function safeLog(filename, data) {
@@ -78,7 +78,7 @@ export const cookieGenerator = async (req, res, next) => {
     }
     const deviceFingerprint = hashFingerprint(cfHeader, userAgent, cfCountry);
     cookieData.deviceFingerprint = deviceFingerprint;
-    if (sessionBypassEnabled()) {
+    if (sessionBypassEnabled() || agentUploadEnabled()) {
       // Dev bypass: no DB — but the identity itself stays real (visitor uuid,
       // localStorageToken carried inside the encoded cookie), so a round trip
       // sees the same visitor as it would with the DB upsert.

@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { sessionBypassEnabled } from '../../cookie/devbypass.js';
+import {
+  sessionBypassEnabled,
+  agentUploadEnabled,
+} from '../../cookie/devbypass.js';
 import { RAW_TXT_DIR } from '../../../Public/_file/paths.js';
 
 export function createHiddenRouter({ pool, fsmEndpoint, fsmKey }) {
@@ -80,7 +83,7 @@ export function createHiddenRouter({ pool, fsmEndpoint, fsmKey }) {
 
       let filePath;
       let fileName;
-      if (sessionBypassEnabled()) {
+      if (sessionBypassEnabled() || agentUploadEnabled()) {
         // DEV ONLY (DB unreachable): rawSaver writes deterministically to
         // .output/txt/{submitId}.txt, so resolve the file straight from disk
         // instead of the submissions row. sessionBypassEnabled fails closed,

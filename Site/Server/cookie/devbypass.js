@@ -32,8 +32,20 @@
 // NODE_ENV === 'production', regardless of the env var — so shipping a stray
 // DEV_BYPASS_SESSION=true in a live .env is inert, not a hole. index.js prints a
 // loud warning at boot in both cases (on in dev / ignored in prod).
+//
+// MASTER SWITCH
+// ─────────────
+// ALLOW_AGENT_UPLOAD=true opens every gate at once — headerCheck (bot UAs
+// included), cookieGenerator's visitor upsert, cookieDBCheck's cookie→users
+// lookup, the MemoryStore session, the request/quota layer, and the hidden
+// raw disk-resolve. It duplicates today's all-flags-on behavior in one flag
+// for agents, and like SESSION it fail-closes under NODE_ENV=production.
+// The specific DEV_BYPASS_* flags are untouched and independent: each opens
+// only its own layer, so one layer (e.g. quota) can be tested with the rest
+// still enforced. Separate checks, not a single fraud system.
 
 const FLAG = 'DEV_BYPASS_SESSION';
+const MASTER = 'ALLOW_AGENT_UPLOAD';
 
 /** Is the cookie+session bypass active for this process? Never true in production. */
 export function sessionBypassEnabled() {
@@ -82,6 +94,28 @@ export function sessionBypassBanner() {
   }
   if (sessionBypassEnabled()) {
     return `[devbypass] ${FLAG}=true — cookie/session gate OPEN and bot User-Agents ALLOWED. Development only.`;
+  }
+  return null;
+}
+
+/** Is the allow-all master active? Never true in production. */
+export function agentUploadEnabled() {
+  if (process.env.NODE_ENV === 'production') return false; // fail closed
+  return process.env[MASTER] === 'true';
+}
+
+/** True when the master was set but is being ignored (production). */
+export function agentUploadIgnored() {
+  return process.env.NODE_ENV === 'production' && process.env[MASTER] === 'true';
+}
+
+/** One-line boot banner for the master, or null when silent. */
+export function agentUploadBanner() {
+  if (agentUploadIgnored()) {
+    return `[devbypass] ${MASTER}=true IGNORED — NODE_ENV=production. Every gate is ENFORCED.`;
+  }
+  if (agentUploadEnabled()) {
+    return `[devbypass] ${MASTER}=true — every gate OPEN (header + cookie + quota + hidden raw). Development only.`;
   }
   return null;
 }

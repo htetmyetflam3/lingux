@@ -5,6 +5,8 @@ import { pool } from './db.js';
 import {
   sessionBypassEnabled,
   sessionBypassIgnored,
+  agentUploadEnabled,
+  agentUploadIgnored,
 } from '../cookie/devbypass.js';
 export function createSessionMiddleware({
   secret = process.env.SESSION_SECRET || 'super-secret-key',
@@ -15,10 +17,20 @@ export function createSessionMiddleware({
   // minted) but drop the MySQL store — the DB is not reachable in dev.
   // sessionBypassEnabled fails closed, so this never activates in production;
   // sessionBypassIgnored keeps the flag equally inert when it is set anyway.
-  if (sessionBypassEnabled() || sessionBypassIgnored()) {
+  if (
+    sessionBypassEnabled() ||
+    sessionBypassIgnored() ||
+    agentUploadEnabled() ||
+    agentUploadIgnored()
+  ) {
     if (sessionBypassEnabled()) {
       console.log(
         '[session] DEV_BYPASS_SESSION — express-session on MemoryStore (no DB).',
+      );
+    }
+    if (agentUploadEnabled()) {
+      console.log(
+        '[session] ALLOW_AGENT_UPLOAD — express-session on MemoryStore (no DB).',
       );
     }
     return session({

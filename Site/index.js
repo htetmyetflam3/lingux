@@ -33,17 +33,22 @@ import {
   inputDirFor,
   ensurePraserDirs,
 } from "./Public/_file/paths.js";
-import { sessionBypassBanner } from "./Server/cookie/devbypass.js";
+import {
+  sessionBypassBanner,
+  agentUploadBanner,
+} from "./Server/cookie/devbypass.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const projectRoot = process.cwd();
 
 // ── Dev bypass banner ────────────────────────────────────────────────────
-// Loud one-liner whenever DEV_BYPASS_SESSION is set: active in dev, ignored
-// in production (see Server/cookie/devbypass.js).
+// Loud one-liner whenever DEV_BYPASS_SESSION or the ALLOW_AGENT_UPLOAD master
+// is set: active in dev, ignored in production (see Server/cookie/devbypass.js).
 const bypassBanner = sessionBypassBanner();
 if (bypassBanner) console.log(bypassBanner);
+const masterBanner = agentUploadBanner();
+if (masterBanner) console.log(masterBanner);
 
 // ── Site layout (restructured repo) ────────────────────────────────────────
 const STATIC_DIR = path.join(projectRoot, "Site", "Public", "STATIC"); // build tools + vite config

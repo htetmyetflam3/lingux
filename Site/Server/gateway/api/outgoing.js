@@ -1,6 +1,7 @@
 import logger from '../../../../Private/Bridge/logen.js';
 import { Router } from 'express';
 import { createOutgoingResponseHandler } from '../proxy/responseHandler.js';
+import { agentUploadEnabled } from '../../cookie/devbypass.js';
 export function createOutgoingRouter({ pool, request }) {
   const responseHandler = createOutgoingResponseHandler({ pool });
   const router = Router();
@@ -15,7 +16,10 @@ export function createOutgoingRouter({ pool, request }) {
         formId,
         source: 'existing',
       });
-      if (process.env.DEV_BYPASS_QUOTA === 'true') {
+      if (
+        process.env.DEV_BYPASS_QUOTA === 'true' ||
+        agentUploadEnabled()
+      ) {
         // dev bypass: nothing was persisted, so there is no result to look up
         return res.status(404).json({ error: 'Result not ready or expired' });
       }
@@ -31,7 +35,10 @@ export function createOutgoingRouter({ pool, request }) {
   });
   router.get('/result', async (req, res) => {
     try {
-      if (process.env.DEV_BYPASS_QUOTA === 'true') {
+      if (
+        process.env.DEV_BYPASS_QUOTA === 'true' ||
+        agentUploadEnabled()
+      ) {
         // dev bypass: history lives in the DB — return an honest empty list
         return res.json({ status: 'ok', count: 0, data: [] });
       }
