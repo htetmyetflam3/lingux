@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * initiate.js — Lingux End-to-End Pipeline Setup & Server Bootstrapping
+ * bootstrap.js — Lingux End-to-End Pipeline Setup & Server Bootstrapping
  *
  * Automates the entire project bootstrap pipeline:
  *  1. Map Directory & Encrypted JSON Build:
@@ -15,9 +15,9 @@
  *  5. Boosts Express Server (Site/index.js) with nodemon / node to serve the SPA
  *
  * Usage:
- *   node initiate.js [--src <map-dir>] [--dev] [--port <port>]
+ *   node bootstrap.js [--src <map-dir>] [--dev] [--port <port>]
  *   node Tools/build/initiate.js [../../mymap]
- *   npm run initiate
+ *   npm run bootstrap
  */
 
 import fs from "node:fs";
@@ -81,14 +81,14 @@ function resolveMapSourceDir(raw) {
 		path.resolve(REPO_ROOT, "Tools", "build", "../../mymap"),
 		path.resolve(REPO_ROOT, "../mymap"),
 		path.resolve(REPO_ROOT, "mymap"),
-		path.resolve(REPO_ROOT, "Private", "Syllable", "mapper", "map"),
+		path.resolve(REPO_ROOT, "Private", "monoSyllabism", "mapper", "map"),
 	];
 	for (const cand of candidates) {
 		if (fs.existsSync(cand) && fs.existsSync(path.join(cand, "sourceMap.js"))) {
 			return cand;
 		}
 	}
-	return path.resolve(REPO_ROOT, "Private", "Syllable", "mapper", "map");
+	return path.resolve(REPO_ROOT, "Private", "monoSyllabism", "mapper", "map");
 }
 
 // ── Helper: Poll HTTP endpoint ──
@@ -165,7 +165,7 @@ async function main() {
 	// Check/Build map bytecode
 	const mapDir = resolveMapSourceDir(rawMapDir);
 	const hasSourceFiles = fs.existsSync(path.join(mapDir, "sourceMap.js"));
-	const jscFile = path.join(REPO_ROOT, "Private", "Syllable", "mapper", "map", "map-runtime.jsc");
+	const jscFile = path.join(REPO_ROOT, "Private", "monoSyllabism", "mapper", "map", "map-runtime.jsc");
 
 	if (hasSourceFiles) {
 		console.log(`  Building bytecode from map source dir: ${c.dim}${mapDir}${c.reset}`);
