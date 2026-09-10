@@ -14,7 +14,7 @@
  *              → (Tools/build/build.js)     obfuscated + encrypted  <map-dir>/map-runtime.cjs
  *              → (bytenode)                 <map-dir>/map-runtime.jsc  (this script)
  *
- * All outputs are written INSIDE the map dir (Private/Syllable/mapper/map),
+ * All outputs are written INSIDE the map dir (Private/monoSyllabism/mapper/map),
  * next to the sources and the map-loader.js — so every rebuild lands there
  * automatically. The engine loads the result through map/map-loader.js.
  *
@@ -29,7 +29,7 @@
  *   <map-dir>/map-runtime.jsc  – the bytecode artifact
  *
  * Import it (the way the engine does):
- *   node --input-type=module -e "import * as m from './Private/Syllable/mapper/map/map-loader.js'; console.log(m.MyNormalize('ကတ်'))"
+ *   node --input-type=module -e "import * as m from './Private/monoSyllabism/mapper/map/map-loader.js'; console.log(m.MyNormalize('ကတ်'))"
  *
  * ⚠️ Version caveat: V8 bytecode is tied to the exact Node/V8 version that
  * compiled it. A `.jsc` built on Node X will only run on Node X (or a

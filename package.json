@@ -7,8 +7,8 @@
    "private": true,
    "type": "module",
    "scripts": {
-      "initiate": "node initiate.js",
-      "start": "node initiate.js",
+      "bootstrap": "node bootstrap.js",
+      "start": "node bootstrap.js",
       "build": "vite build --config Site/Public/STATIC/Build/vite.config.js",
       "lint": "eslint .",
       "lint:fix": "eslint . --fix",

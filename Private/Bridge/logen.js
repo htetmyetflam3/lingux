@@ -319,6 +319,20 @@ function isoTs() {
   return new Date().toISOString();
 }
 
+/* Moved from monoSyllabism/helper/utilities.js (helper/ deleted): session/output
+   hash stamp, YYYYMMDD_HHMMSS_mmm. Named export like stamp() below. */
+export function getDateTimeHash() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const h = String(now.getHours()).padStart(2, '0');
+  const min = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  const ms = String(now.getMilliseconds()).padStart(3, '0');
+  return `${y}${m}${d}_${h}${min}${s}_${ms}`;
+}
+
 function ss(data) {
   try { return JSON.stringify(data); }
   catch { return '[Circular]'; }
@@ -470,7 +484,7 @@ export function reportPosTreeHitRoot(module, root, step) {
 export function init(flags = {}) {
   if (_initialized) return;
   _debug = flags.DEBUG === true;
-  _batchMode = flags.BATCH === true || flags.SEGMENTED_MODE === 'batch';
+  _batchMode = flags.BATCH === true || flags.SEGMENTED_MODE === 'readdir';
   clearLogs();
   _initialized = true;
 

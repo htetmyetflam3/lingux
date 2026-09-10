@@ -14,7 +14,7 @@ const OUTPUT_DIR = "PDF/Python/File/.output/txt/";
 // lives at Private/Engine/_knowledge/json (master.json.enc next to it).
 const DATA_DIR = "Private/Engine/_knowledge/json";
 const INPUT_DIR = "PDF/Python/File/input/";
-const JSC_FILE = "Private/Syllable/mapper/map/map-runtime.jsc";
+const JSC_FILE = "Private/monoSyllabism/mapper/map/map-runtime.jsc";
 
 export function resolveInputs(src) {
 	const abs = resolvePath(src);

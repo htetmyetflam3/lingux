@@ -31,7 +31,7 @@ Site/Public/PRASER/Python/.output/
 # Engine runtime workspace (Private api-server: tree/output/log + staging).
 # Built fresh by runMain() on every /process call — never persisted.
 /PDF/
-/Private/Syllable/File/
+/Private/monoSyllabism/File/
 # POS build can write plaintext next to master.json.enc (reference watch-out
 # #3) — never let it into git.
 Private/Engine/_knowledge/json/master.json

@@ -4,13 +4,13 @@
  *
  * Convenience wrapper to run Lingux pipeline bootstrapping from Tools/build:
  *   lingux/Tools/build $ node initiate.js ../../mymap/
- *   lingux/Tools/build $ node ../../initiate.js
+ *   lingux/Tools/build $ node ../../bootstrap.js
  */
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT_INITIATE = path.resolve(__dirname, "../../initiate.js");
+const ROOT_INITIATE = path.resolve(__dirname, "../../bootstrap.js");
 
 import(ROOT_INITIATE);

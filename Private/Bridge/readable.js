@@ -1,6 +1,5 @@
 /* --- ruleEngine/writereadable.js --- */
-import fs from 'fs';
-import { toBurmeseStr } from '../Syllable/mapper/map/map-loader.js';
+import { toBurmeseStr } from '../monoSyllabism/mapper/map/map-loader.js';
 
 export function formatResolvedLine(lineResult) {
   const parts = [];
@@ -15,19 +14,6 @@ export function formatResolvedLine(lineResult) {
   return parts.join('  ');
 }
 
-/**
- * Writes resolved lines from a generator to a stream writer.
- * DOES NOT close the writer — caller closes after all batches.
- */
-export async function writeResolved(ruleGen, writer) {
-  for await (const lineResult of ruleGen) {
-    const line = formatResolvedLine(lineResult);
-    writer.writeLine([line]);
-  }
-  writer.flush();
-  // DO NOT close here — batch loop reuses the same writer
-}
-
 export function makeReadable(syllables) {
   const joined = syllables.join('  ');
   let out = toBurmeseStr(joined);
@@ -35,15 +21,59 @@ export function makeReadable(syllables) {
   return out;
 }
 
-export function getBatchSize(filePath) {
-  try {
-    const stats = fs.statSync(filePath);
-    const sizeMB = stats.size / (1024 * 1024);
-    if (sizeMB < 1) return Infinity;
-    if (sizeMB < 2) return 300;
-    if (sizeMB < 5) return 500;
-    return 1000;
-  } catch {
-    return 1000;
-  }
+// ── Line formatters (moved from mapper/generator/BurmeseTranslator.js) ──
+const DELIMITER = '  ';
+
+function getSyllables(token) {
+  return token.syllables ?? [];
 }
+
+export function toBurmeseLine(lineResult) {
+  const parts = [];
+  for (const token of lineResult.tokens ?? []) {
+    parts.push(...getSyllables(token));
+  }
+  return parts.join(DELIMITER);
+}
+
+export function toBurmeseLineWithPos(lineResult, posField = 'finalPos') {
+  const parts = [];
+  for (const token of lineResult.tokens ?? []) {
+    const burmese = getSyllables(token).join('');
+    /* Tagger-injected boundary (<eos> suffixed behind the fullstop,
+       the way √ is suffixed behind syllables): prints bare, never tagged. */
+    if (burmese.endsWith('<eos>')) {
+      parts.push(burmese);
+      continue;
+    }
+    const pos = token[posField] ?? '?';
+    parts.push(`${burmese}{${pos}}`);
+  }
+  return parts.join(DELIMITER);
+}
+
+// ── Piece assembler (moved from Bridge/bridge.js bridgeSyllable) ──
+// \n-assembler for the syllable-only path. Pieces arrive √-suffixed
+// from the segmentor — pure concat, no array, no join. Bare "\n" is
+// the control signal: emit the line.
+export async function* toLineStrings(seg) {
+  let line = '';
+  for await (const item of seg) {
+    if (item === '\n') {
+      yield line;
+      line = '';
+      continue;
+    }
+    if (typeof item !== 'string') continue;
+    line += item;
+  }
+  if (line.length) yield line;
+}
+
+export function toSyllableLine(lineStr) {
+  return lineStr
+    .split('√')
+    .filter((t) => t.trim())
+    .join('  ');
+}
+

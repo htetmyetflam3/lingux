@@ -1,9 +1,10 @@
-import { sessionBypassEnabled } from './devbypass.js';
+import { sessionBypassEnabled, agentUploadEnabled } from './devbypass.js';
 
 export function headerCheck(req, res, next) {
   // DEV_BYPASS_SESSION: open the gate for automated clients (curl) in dev.
+  // ALLOW_AGENT_UPLOAD: same opening, as the all-gates master.
   // Trusted-IP resolution still runs — everything downstream expects it.
-  if (sessionBypassEnabled()) {
+  if (sessionBypassEnabled() || agentUploadEnabled()) {
     req.trustedIp =
       req.headers['cf-connecting-ip'] ||
       req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||

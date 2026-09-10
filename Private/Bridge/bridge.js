@@ -1,10 +1,10 @@
 import { OutputFile } from "./path.js";
 import { bridgeStart, bridgeEnd, bridgeLineCount } from "./logen.js";
-import { createStreamWriter } from "../Syllable/mapper/context/_writer.js";
-import { getBatchSize } from "../Syllable/mapper/context/_file.js";
-import * as BurmeseTranslator from "../Syllable/mapper/generator/BurmeseTranslator.js";
-import { runTagger } from "../Syllable/main/breaker/tagger.js";
-import { runRuleEngine } from "../Syllable/main/endofmain.js";
+import { createStreamWriter } from "./store.js";
+import { getFlushLines } from "../monoSyllabism/main/grapheme/loaded.js";
+import { toBurmeseLine, toBurmeseLineWithPos, toLineStrings } from "./readable.js";
+import { runTagger } from "../monoSyllabism/main/phoneme/phonology.js";
+import { runRuleEngine } from "../monoSyllabism/main/endofmain.js";
 
 class Hook {
 	constructor(name) {
@@ -28,65 +28,66 @@ class BridgeHooks {
 	}
 }
 
-async function* toLineStrings(seg) {
-	let buffer = [];
+/* Holder behind the segmentor (tagger path only): pieces arrive
+   √-suffixed from the segmentor — pure concat, no array, no join.
+   A unit completes at the SECOND ။ core (suffix stripped before the
+   test, so a ။ inside a masked {...} span can't split early). \n
+   becomes a " √" barrier (never a boundary). Trailing fragment
+   without two stops still emits at EOF; a barrier-only tail is out. */
+async function* fullstopHolder(seg) {
+	let unit = "";
+	let stops = 0;
+	let hasContent = false;
 	for await (const item of seg) {
 		if (item === "\n") {
-			yield buffer.join("√");
-			buffer = [];
+			unit += " √";
 			continue;
 		}
-		const s =
-			item && typeof item === "object" && item.syllable !== undefined
-				? item.syllable
-				: typeof item === "string"
-					? item
-					: null;
-		if (s !== null) buffer.push(s);
-	}
-	if (buffer.length) yield buffer.join("√");
-}
-
-async function* batchTagger(lineGen, batchSize, hash) {
-	let batch = [];
-	for await (const lineStr of lineGen) {
-		batch.push(lineStr);
-		if (batch.length >= batchSize) {
-			yield* runTagger(batch, hash);
-			batch = [];
+		if (typeof item !== "string") continue;
+		unit += item;
+		const core = item.endsWith("√") ? item.slice(0, -1) : item;
+		if (core === "။") {
+			stops++;
+			hasContent = true;
+			if (stops >= 2) {
+				yield unit;
+				unit = "";
+				stops = 0;
+				hasContent = false;
+			}
+		} else if (core.trim() !== "") {
+			hasContent = true;
 		}
 	}
-	if (batch.length) {
-		yield* runTagger(batch, hash);
-	}
+	if (unit && hasContent) yield unit;
 }
 
 export async function bridge(seg, writeFlags, hash, inputPath) {
 	bridgeStart({ file: inputPath, hash });
 
-	const batchSize = getBatchSize(inputPath);
+	const flushLines = getFlushLines(inputPath);
 	const hooks = new BridgeHooks();
 	const writers = {};
 	let lineCount = 0;
 
 	if (writeFlags.syllable) {
-		writers.syllable = createStreamWriter(OutputFile(), "syllable", batchSize);
+		writers.syllable = createStreamWriter(OutputFile(), "syllable", flushLines);
 		hooks.syllable.tap((line) => {
-			writers.syllable.writeLine([BurmeseTranslator.toBurmeseLine(line)]);
+			writers.syllable.writeLine([toBurmeseLine(line)]);
 		});
 	}
 
 	if (writeFlags.rawPos) {
-		writers.rawPos = createStreamWriter(OutputFile(), "raw_pos", batchSize);
+		writers.rawPos = createStreamWriter(OutputFile(), "raw_pos", flushLines);
 		hooks.rawPos.tap((line) => {
 			writers.rawPos.writeLine([
-				BurmeseTranslator.toBurmeseLineWithPos(line, "rawPos"),
+				toBurmeseLineWithPos(line, "rawPos"),
 			]);
 		});
 	}
 
-	const lineGen = toLineStrings(seg);
-	const taggerGen = batchTagger(lineGen, batchSize, hash);
+	const unitGen = fullstopHolder(seg);
+	const taggerGen = runTagger(unitGen, hash);
 	const kernelGen = runRuleEngine(taggerGen, hash);
 
 	for await (const lineResult of kernelGen) {
@@ -113,44 +114,33 @@ export async function bridge(seg, writeFlags, hash, inputPath) {
 	};
 }
 
-/* Syllable-only sibling of bridge().
-   Same generator series, one link long: the writer sits at the
-   segmentor instead of after the kernel, so the tagger and the rule
-   engine are never constructed. Chosen by flag in runMain(), so this
+/* Syllable-only sibling of bridge(). Thin by design: the writer consumes
+   the segmentor generator directly (store.js consumeSyllable, formatting
+   in readable.js) — the tagger and the rule engine are never constructed.
+   Assembly differs on purpose: \n lines here vs two-fullstop units in
+   bridge() (fullstopHolder) — the tagger needs sentence boundaries, the
+   syllable file mirrors input lines. Chosen by flag in runMain(), so this
    is not a second pass — it is the only pass when POS was not asked
-   for. Whitespace is filtered here and only here: the √ line keeps
-   its space tokens, which is what any later POS chain needs as word
-   barriers. */
+   for. Whitespace is filtered in toSyllableLine and only there. */
 export async function bridgeSyllable(seg, writeFlags, hash, inputPath) {
 	bridgeStart({ file: inputPath, hash });
 
-	const batchSize = getBatchSize(inputPath);
-	let writer = null;
+	const flushLines = getFlushLines(inputPath);
+	let syllablePath = null;
 	let lineCount = 0;
 
 	if (writeFlags.syllable) {
-		writer = createStreamWriter(OutputFile(), "syllable", batchSize);
-	}
-
-	for await (const lineStr of toLineStrings(seg)) {
-		if (writer) {
-			writer.writeLine([
-				lineStr
-					.split("√")
-					.filter((t) => t.trim())
-					.join("  "),
-			]);
-		}
-		lineCount++;
-		bridgeLineCount(1);
-	}
-
-	let syllablePath = null;
-	if (writer) {
-		writer.flush();
+		const writer = createStreamWriter(OutputFile(), "syllable", flushLines);
+		lineCount = await writer.consumeSyllable(seg);
 		syllablePath = writer.close();
+	} else {
+		/* No writer: still drain the segmentor so lineCount stays honest. */
+		for await (const line of toLineStrings(seg)) {
+			if (typeof line === "string") lineCount++;
+		}
 	}
 
+	bridgeLineCount(lineCount);
 	bridgeEnd({ file: inputPath, lineCount });
 
 	return { syllablePath, rawPosPath: null, lineCount, hash };
