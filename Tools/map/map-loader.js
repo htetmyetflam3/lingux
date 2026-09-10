@@ -5,7 +5,7 @@
 // Tools/build/build-bytecode.js, so this loader resolves everything relative
 // to itself — it works from any cwd and does not depend on Bridge/path.js.
 //
-// Repo layout: Private/monoSyllabism/mapper/map/ → 4 levels up = repo root.
+// Repo layout: Tools/map/ → 4 levels up = repo root.
 
 import { createRequire } from "node:module";
 import path from "node:path";

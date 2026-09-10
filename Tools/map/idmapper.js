@@ -1,5 +1,5 @@
 import path from 'path';
-import { TreeFile } from '../../Bridge/path.js';
+import { TreeFile } from '../../Private/Bridge/path.js';
 import { loadMappedRows } from '../main/grapheme/loaded.js';
 
 let _asciiToId = null;

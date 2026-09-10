@@ -6,8 +6,8 @@ import {
 } from "../../../Bridge/logen.js";
 
 import { walkPos } from "../grapheme/traverser.js";
-import { PUNCTUATION, ALL_DIGITS } from "../../mapper/map/map-loader.js";
-import { burmeseToId } from "../../mapper/idmapper.js";
+import { PUNCTUATION, ALL_DIGITS } from "../../../../Tools/map/map-loader.js";
+import { burmeseToId } from "../../../../Tools/map/idmapper.js";
 
 const BURMESE_FULLSTOP = "။";
 

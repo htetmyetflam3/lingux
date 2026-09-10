@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   Module-memory.js (Memory Throttling & Sizing Utilities)
+   Module-sizer.js (Memory Throttling & Sizing Utilities)
    - Dynamic line-batch sizing for downstream taggers/rule engines
    - Multi-byte safe buffer splitting on '\n'
    - Calculates optimal I/O chunk sizes

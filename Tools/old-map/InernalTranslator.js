@@ -1,4 +1,4 @@
-import { getBatchSize } from '../../Private/monoSyllabism/mapper/context/memory.js';
+import { getBatchSize } from '../../Private/monoSyllabism/mapper/context/sizer.js';
 export { getBatchSize };
 
 const DELIMITER = '  ';

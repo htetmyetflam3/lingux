@@ -1,4 +1,4 @@
-import { asciiToId, burmeseToId } from '../../Private/monoSyllabism/mapper/idmapper.js';
+import { asciiToId, burmeseToId } from '../../Tools/map/idmapper.js';
 
 const DELIMITER = '  ';
 

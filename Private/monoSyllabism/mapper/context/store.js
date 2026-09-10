@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   Module-disk.js (renamed from _writer.js — stream + tree writers)
+   Module-store.js (renamed from _writer.js — stream + tree writers)
    ═══════════════════════════════════════════════════════════════ */
 
 import fs from 'fs';

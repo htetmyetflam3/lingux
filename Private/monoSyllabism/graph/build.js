@@ -10,7 +10,7 @@ import {
   writeMappedToDir,
   writeRtlToDir,
   writeRefToDir,
-} from '../mapper/context/disk.js';
+} from '../mapper/context/store.js';
 import { parseJson } from '../main/grapheme/loaded.js';
 
 export async function runBuild(sourceData, outputDir = TreeFile()) {

@@ -1,5 +1,5 @@
 import { createFsmReadStream } from '../../../Bridge/streamline.js';
-import { normalize, mapperStr } from '../map/map-loader.js';
+import { normalize, mapperStr } from '../../../../Tools/map/map-loader.js';
 import { InputFile } from '../../../Bridge/path.js';
 /**
  * Generator: raw file → normalize → mapperStr (ASCII internal).

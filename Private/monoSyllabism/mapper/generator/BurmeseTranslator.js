@@ -1,4 +1,4 @@
-import { getBatchSize } from '../context/memory.js';
+import { getBatchSize } from '../context/sizer.js';
 export { getBatchSize };
 
 const DELIMITER = '  ';

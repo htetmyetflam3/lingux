@@ -1,7 +1,7 @@
 import { OutputFile } from "./path.js";
 import { bridgeStart, bridgeEnd, bridgeLineCount } from "./logen.js";
-import { createStreamWriter } from "../monoSyllabism/mapper/context/disk.js";
-import { getBatchSize } from "../monoSyllabism/mapper/context/memory.js";
+import { createStreamWriter } from "../monoSyllabism/mapper/context/store.js";
+import { getBatchSize } from "../monoSyllabism/mapper/context/sizer.js";
 import * as BurmeseTranslator from "../monoSyllabism/mapper/generator/BurmeseTranslator.js";
 import { runTagger } from "../monoSyllabism/main/phoneme/phonology.js";
 import { runRuleEngine } from "../monoSyllabism/main/endofmain.js";

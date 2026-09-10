@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { MyNormalize, mapperStr } from '../../../../Private/monoSyllabism/mapper/map/map-loader.js';
+import { MyNormalize, mapperStr } from '../../../../Tools/map/map-loader.js';
 import { createResponseGenerator } from './responses.js';
 async function openFsmConnection({
   formId,
