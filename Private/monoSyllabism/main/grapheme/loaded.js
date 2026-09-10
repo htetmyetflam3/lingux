@@ -235,11 +235,12 @@ export function getReadChunkSize(fileSizeBytes) {
   if (!fileSizeBytes || typeof fileSizeBytes !== 'number') {
     return 256 * 1024; // 256 KB safe default
   }
-  const sizeMB = fileSizeBytes / (1024 * 1024);
-  if (sizeMB < 1)   return 64 * 1024;     // 64 KB
-  if (sizeMB < 5)   return 256 * 1024;    // 256 KB
-  if (sizeMB < 20)  return 512 * 1024;    // 512 KB
-  if (sizeMB < 100) return 1024 * 1024;   // 1 MB
-  return 2 * 1024 * 1024;                 // 2 MB
+  /* Frontend caps uploads at 10 MB and a full-size file should split
+     into ~20 chunks: bytes/20, clamped so small files don't shred
+     into slivers and big local files stay bounded. 10 MB -> 512 KB. */
+  const raw = Math.ceil(fileSizeBytes / 20);
+  const MIN = 64 * 1024;  // 64 KB floor
+  const MAX = 512 * 1024; // 512 KB ceiling (10 MB / 20)
+  return Math.min(MAX, Math.max(MIN, raw));
 }
 
