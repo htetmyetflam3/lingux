@@ -1,0 +1,6 @@
+# Local boot secrets and runtime state — never tracked
+.env
+node_modules/
+.data/
+logs/
+package-lock.json

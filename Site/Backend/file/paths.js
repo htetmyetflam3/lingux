@@ -16,12 +16,16 @@ export function joinPath(...segments) {
   return path.join(...segments);
 }
 export const WEB = path.basename(PROJECT_ROOT);
-export const BACKEND_DIR = "backend";
+// Modular layout. PROJECT_ROOT resolves to Site/ (two levels up from this
+// file). Backend and Frontend stay inside it; the parser moved OUT to a
+// sibling top-level module, hence the leading ../. Every constant below
+// derives from these three roots.
+export const BACKEND_DIR = "Backend";
 export const FILE_DIR = `${BACKEND_DIR}/file`;
 export const SITE_ENTRY = "index.js";
 export const SITE_ENV = ".env";
 export const SITE_PACKAGE_JSON = "package.json";
-export const PARSED_ROOT = "Parsed";
+export const PARSED_ROOT = "../Parser/main";
 export const PARSER_DIR = `${PARSED_ROOT}/parser`;
 export const PARSER_MAP_DIR = `${PARSER_DIR}/map`;
 export const PARSER_MODEL_DIR = `${PARSER_DIR}/model`;
@@ -49,7 +53,7 @@ export const LOGS_DIR = "logs";
 export const DATA_DIR = ".data";
 export const DB_FILE = process.env.DB_FILE || `${DATA_DIR}/site.db`;
 export const SCHEMA_FILE = `${BACKEND_DIR}/db/schema.sql`;
-export const FRONTEND_SOURCE_DIR = "frontend";
+export const FRONTEND_SOURCE_DIR = "Frontend";
 export const FRONTEND_DIR = process.env.FRONTEND_DIR || `${FRONTEND_SOURCE_DIR}/dist`;
 export const FRONTEND_REACT_DIR = `${FRONTEND_DIR}/react`;
 export const VITE_CONFIG = `${FRONTEND_SOURCE_DIR}/frontend-bootstrap/vite.config.js`;

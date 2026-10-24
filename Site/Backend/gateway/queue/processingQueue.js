@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { emitEvent } from '../../../logen/site.js';
+import { emitEvent } from '../../../../Bridge/logen/site.js';
 import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 const now = () => new Date().toISOString();

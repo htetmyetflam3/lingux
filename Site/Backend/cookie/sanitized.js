@@ -1,4 +1,4 @@
-import logger from '../../logen/site.js';
+import logger from '../../../Bridge/logen/site.js';
 import { db } from '../db/db.js';
 import { decodeCookie } from './codec.js';
 export async function cookieDBCheck(req, res, next) {
