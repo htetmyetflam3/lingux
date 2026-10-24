@@ -23,7 +23,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { config } from './config.mjs';
 import { createRateLimiter } from './rate-limit.mjs';
-import { bridgeInvoke, BridgeError } from './bridge.mjs';
+import { bridgeInvoke, BridgeError } from './bridge/bridge.js';
 
 // The signature stamped on every call this API makes into the Bridge. The
 // Bridge routes on this field; Site calls will carry signature 'site' plus

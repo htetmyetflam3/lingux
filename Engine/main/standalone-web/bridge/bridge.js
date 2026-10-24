@@ -1,4 +1,5 @@
-// Engine Bridge entry — temporary home inside the standalone-web plugin.
+// Engine Bridge entry — temporary home inside the standalone-web plugin's
+// bridge/ dir, mirroring the future Engine/main/Bridge/ layout.
 //
 // The real Engine/main/Bridge (path.js / logen.js / Ginit.js plus this entry)
 // is built later; this file is the entry that will merge into it. The plugin is
@@ -13,7 +14,7 @@
 //
 // The bridge "taps" the handler for that signature; an unknown signature is
 // refused. Adding a caller means adding one handler — nothing else changes.
-import { invokeWithHash, invokeSyllableWithHash } from './tokenizer.js';
+import { invokeWithHash, invokeSyllableWithHash } from '../tokenizer.js';
 
 export class BridgeError extends Error {
   constructor(message, status = 400) {
