@@ -1,6 +1,8 @@
-// FILE: standalone-web/path.js
+// FILE: standalone-web/engine-plugin.path.js
 //
 // Local, self-contained workspace path contract for the removable plugin.
+// Distinct name (not plain path.js) so it never collides with Bridge/path.js
+// or the other engine path copies when viewed from the repo root.
 // It ASSUMES the engine modules (MonoSyllabism, knowledge, init, ...) and the
 // bridge/ entry live inside THIS directory, so every path resolves against the
 // directory of this file — never against process.cwd() and never at a
