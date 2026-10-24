@@ -1,0 +1,68 @@
+REVISIT — Bridge flags.js + api-server.js not wired into standalone-web
+Plain text on purpose (no .md). Logged 2026-10-24. All facts verified on disk.
+
+=====================================================================
+CURRENT STATE (branch arena/d7338c07-lingux, HEAD 5059576)
+=====================================================================
+Two legacy Bridge modules exist in THREE byte-identical variant copies:
+  Bridge/dev-Bridge/            {flags.js, api-server.js}
+  Bridge/main-Engine-Bridge/    {flags.js, api-server.js}
+  Bridge/proofreading-Bridge/   {flags.js, api-server.js}
+(md5 identical across the three for each file.)
+
+flags.js
+  - Hard-coded FLAGS object, no .env / no argv: port 9000, mount "/fsm",
+    apiKey/engineKey pair (two-phase handshake), caller-side KeyAnswer +
+    Endpoint, writeSyllable/writePos, handshake payload (fileName, userId,
+    sessionId, formId, submitId, source, status), input file.
+  - ZERO importers anywhere in the repo (grep verified). Dead module today.
+
+api-server.js (544 lines)
+  - Old Gen1 express wrapper: POST /fsm, GET /result/:hash, POST /process,
+    GET /health; fail-closed key+IP+origin gate; engine-initiated praser
+    collect loop; pre-receive metadata cache.
+  - Only references: Engine/main/package.json script
+    "api": "node Bridge/api-server.js" (path does not exist in the current
+    variant-dir layout) and .bin/node/check-imports.mjs manifest entry.
+  - Its imports are dead from the variant dirs:
+      ../init/cli.js (configure, grammarPipeline)
+      ../init/initS.js (invokeSyllableWithHash, hashKind)
+      ../Bridge/logen.js (getDateTimeHash)
+  - CLI self-boot block at lines 543-544:
+      const isMain = process.argv[1] &&
+        import.meta.url === pathToFileURL(process.argv[1]).href;
+      if (isMain) startServer();
+
+The standalone-web plugin replaces this design: server.mjs (keyed site API),
+public-api.mjs (session + rate guards), bridge/bridge.js (signature routing),
+tokenizer.js (read-back incl. positions). Neither legacy module is wired to
+any of it — that is the gap being recorded here.
+
+=====================================================================
+PLANNED CHANGE (owner instruction — DO IT WHEN REVISITING, NOT YET DONE)
+=====================================================================
+1. REMOVE the CLI entry: delete the isMain/startServer() self-boot block from
+   api-server.js. A module must not start a listener on import; the host
+   (standalone-web index.js) owns process startup. Keep createApp/startServer
+   as plain exports only.
+2. FLAGS BECOMES index.js: place the flags module as the package entry
+   index.js (flags as the entry/config surface, hard-coded constants, no
+   argv). Exact target dir to be confirmed at revisit time — candidate homes:
+     a) Engine/main/standalone-web/index.js (plugin entry, current work dir)
+     b) future Engine/main/Bridge/index.js (when the real Bridge is built)
+   Decision deferred: owner will say which; do not guess.
+3. WIRING (separate, larger): reconcile api-server.js's /fsm /result /process
+   surface with the plugin's server.mjs/public-api.mjs, and repoint its dead
+   imports to bridge/bridge.js + tokenizer.js (invokeSyllableWithHash now
+   lives there; hashKind was intentionally removed from tokenizer).
+
+=====================================================================
+CONSTRAINTS TO RESPECT AT REVISIT
+=====================================================================
+- Three identical copies: change one, then propagate — never let them drift.
+- flags.js currently holds real-looking keys in cleartext; if it becomes
+  index.js, move secrets to .env (the plugin already loads its own .env via
+  dotenv) instead of shipping them in code.
+- No new CLI entry may be reintroduced; no argv parsing in the entry.
+- tokenizer.js position contract stays: positions out, never finished
+  segmented text; bridge returns the bare syllable string only.
