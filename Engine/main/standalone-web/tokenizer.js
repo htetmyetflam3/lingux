@@ -5,16 +5,17 @@
    Outputs:   delegates to Module B and returns the file text
    ═══════════════════════════════════════════════════════════════ */
 
-// Engine deps are imported lazily: the Bridge seam (../Bridge/path.js) is not
-// wired yet. Lazy imports let the web process load this module; only actual
-// output read-back fails until the Bridge exists.
+// Engine deps are imported lazily: the MonoSyllabism engine modules are not
+// copied into this plugin yet. The workspace path contract already exists
+// locally (./path.js); the remaining engine seams fail only when actual output
+// read-back runs, so the web process and handshake flow boot without them.
 let engineDeps = null;
 async function engine() {
   if (!engineDeps) {
     const [path, stream, formatter] = await Promise.all([
-      import('../Bridge/path.js'),
-      import('../MonoSyllabism/utilities/stream.js'),
-      import('../MonoSyllabism/utilities/formatter.js'),
+      import('./path.js'),
+      import('./MonoSyllabism/utilities/stream.js'),
+      import('./MonoSyllabism/utilities/formatter.js'),
     ]);
     engineDeps = { path, stream, formatter };
   }

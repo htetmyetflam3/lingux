@@ -183,7 +183,7 @@ publicRouter.use((err, _req, res, _next) => {
     return res.status(err.status).json({ error: err.message });
   }
   if (err?.code === 'ERR_MODULE_NOT_FOUND' || err?.code === 'MODULE_NOT_FOUND') {
-    return res.status(503).json({ error: 'tokenizer engine seam not wired (Bridge missing)' });
+    return res.status(503).json({ error: 'tokenizer engine seam not wired (engine modules not copied into the plugin yet)' });
   }
   if (err?.code === 'ENOENT') {
     return res.status(404).json({ error: 'no engine output for the mapped hash' });
