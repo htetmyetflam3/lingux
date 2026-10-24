@@ -5,11 +5,11 @@ import { loadDetector, processBytesForMethod, buildFinalPages, markPdfImagePages
 import { writeOutput } from "../write/emit.mjs";
 import { scanText, formatScanReport, loadScanDictionary, dictionaryWords } from "../text/scan.mjs";
 import { repairText, repairFromScanVerdict } from "../text/repair.mjs";
-import { emitEvent } from "../../../logen/core.js";
+import { emitEvent } from "../../../../Bridge/logen/core.js";
 import { MAX_INPUT_BYTES, MAX_INPUT_MB } from "../core/limits.mjs";
 import { REGISTER_LOG } from "../core/paths.mjs";
 import { startRecord, note, appendRecord, registerPath } from "../core/provenance.mjs";
-import { installPassiveLog } from "../../../logen/site.js";
+import { installPassiveLog } from "../../../../Bridge/logen/site.js";
 
 /* The praser runs in a worker thread, so the listener installed in index.js
    is in another thread and would never see these events. Worker stdout is
@@ -188,6 +188,8 @@ export function createSourceRunner({ kind, method, docxImages = false, pdfImages
       filename: name ?? null,
       pages: pages.length,
       counts: job.counts,
+      // The six-path verdict, always surfaced for the caller policy layer.
+      encodingPath: chosenPath,
       ...(scanLog ? { scanLog } : {}),
       ...(scanTotals ? { scanPath: chosenPath } : {}),
       ...(scanSummary?.length ? { scanSummary } : {}),

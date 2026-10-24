@@ -53,7 +53,7 @@ import {
 import { englishLikeness } from "../text/mm-score.mjs";
 import { crowdVote, loadWitnesses } from "./outline-vote.mjs";
 import { WININNWA_LEGACY_CODE_PAGE } from "./registry.mjs";
-import { emitEvent } from "../../../logen/core.js";
+import { emitEvent } from "../../../../Bridge/logen/core.js";
 
 const WITNESS_FILE = path.join(
   path.dirname(new URL(import.meta.url).pathname),

@@ -34,7 +34,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { run } from 'node:test';
-import { emitLog, reportInc } from './core.js';
+import { emitLog, reportInc } from '../../Bridge/logen/core.js';
 
 /** The pure files: no sqlite, no socket. Keep this list honest -- adding a
  *  file that opens a database here makes every boot write one. */

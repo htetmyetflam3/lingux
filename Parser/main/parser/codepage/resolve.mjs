@@ -41,7 +41,7 @@ import {
 import { DocumentDecoding, detectLegacyLayoutFonts } from "../read/pdf-fonts.mjs";
 import { LEGACY_CODE_PAGES, UNICODE_PATH } from "./registry.mjs";
 import { buildVectorOutlineLayout } from "./vector-repair.mjs";
-import { emitEvent } from "../../../logen/core.js";
+import { emitEvent } from "../../../../Bridge/logen/core.js";
 
 /* The score a code page must clear to be used at all. It belongs here, with
    the code that scores: pipeline.mjs held it and re-exports it, which made

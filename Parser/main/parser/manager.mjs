@@ -9,6 +9,8 @@ import {
   MAX_OCR_PAGES,
   ocrTimeoutMs,
 } from "./core/limits.mjs";
+import { decideForCaller, normalizeCaller } from "./caller-policy.mjs";
+import { classifyScraperSource } from "./codepage/classify.mjs";
 
 const EXTRACT_URL = new URL("./worker/extract.entry.mjs", import.meta.url); 
 const OCR_URL = new URL("./worker/ocr.entry.mjs", import.meta.url); 
@@ -16,6 +18,21 @@ const OCR_URL = new URL("./worker/ocr.entry.mjs", import.meta.url);
 const OUTPUT_TYPES = new Set(["txt", "docx", "pdf"]);
 const JOBS = new Set(["extracting", "ocr", "null"]);
 const METHODS = new Set(["default", "manual", "null"]);
+
+// Identity/contract fields the wider API chain (Site queue, engine plugin)
+// attaches to a job. The parser does not interpret them; it must echo every
+// one back on BOTH normal and skip results so the caller can reconcile.
+const IDENTITY_FIELDS = [
+  "jobToken", "formId", "submitId", "userId", "sessionId", "extension", "task",
+];
+
+function echoMeta(job) {
+  const identity = {};
+  for (const field of IDENTITY_FIELDS) {
+    if (job?.[field] !== undefined) identity[field] = job[field];
+  }
+  return { ...identity, ...(job?.meta && typeof job.meta === "object" ? job.meta : {}) };
+}
 
 function errorFromWorker(lane, payload) {
   if (!payload || typeof payload === "string") {
@@ -142,13 +159,51 @@ export class Manager {
   }
 
   
-  async dispatch(job) {
+  async dispatch(job, caller = "site") {
+    const who = normalizeCaller(caller);
     const { job: jobField, method } = readManagerPayload(job);
     const lane = route(job);
     const out = resolveOutput(job);
+    const meta = echoMeta(job);
+    const inputKind = job.inputKind ?? inferInputKind(job);
+    const fileInfo = {
+      filename: job.filename ?? null,
+      inputKind,
+      output: out,
+      method,
+      lane,
+    };
 
-    
-    
+    // Scraper early gate: skip an old-font PDF BEFORE paying for a worker parse.
+    // OCR lane and DOCX are never gated. Site never enters this branch (its
+    // policy is parse-all). A skip returns the same contract fields as a parse.
+    if (who === "scraper" && lane === "extract" && inputKind === "pdf") {
+      const source = job.data ?? (job.inPath ? job.inPath : null);
+      if (source) {
+        const verdict = await classifyScraperSource(source, inputKind);
+        const decision = decideForCaller(who, { encodingPath: verdict.encodingPath, lane });
+        if (decision.action === "skip") {
+          return {
+            skipped: true,
+            action: "skip",
+            caller: who,
+            reason: decision.reason,
+            encodingPath: decision.encodingPath ?? verdict.encodingPath ?? null,
+            // file/contract echo — never dropped, even on a skip
+            file: null,
+            pages: 0,
+            counts: null,
+            lineCount: 0,
+            textChars: 0,
+            textBytes: 0,
+            mimeType: null,
+            ...fileInfo,
+            ...meta,
+          };
+        }
+      }
+    }
+
     const previous = this.laneTails[lane];
     let releaseLane;
     const laneDone = new Promise((resolve) => { releaseLane = resolve; });
@@ -225,11 +280,16 @@ export class Manager {
       }
 
       const result = {
+        skipped: false,
+        action: "parse",
+        caller: who,
         file: reply.file,
         filename: job.filename ?? reply.filename ?? null,
         output: out,
         method,
         lane,
+        // The measured six-path verdict, surfaced straight from the worker.
+        encodingPath: reply.encodingPath ?? reply.scanPath ?? null,
         pages: reply.pages,
         counts: reply.counts,
         lineCount: reply.lineCount,
@@ -239,6 +299,8 @@ export class Manager {
         ...(reply.scanLog ? { scanLog: reply.scanLog } : {}),
         ...(reply.scanPath ? { scanPath: reply.scanPath } : {}),
         ...(reply.scanSummary?.length ? { scanSummary: reply.scanSummary } : {}),
+        // identity/contract fields echoed last so they can never be lost
+        ...meta,
       };
       if (out === "docx" && "text" in reply) result.text = reply.text;
       return result;
@@ -276,9 +338,9 @@ export class Manager {
     }
   }
   
-  async run(jobs) {
+  async run(jobs, caller = "site") {
     const out = [];
-    for (const job of jobs) out.push(await this.dispatch(job));
+    for (const job of jobs) out.push(await this.dispatch(job, caller));
     return out;
   }
 
