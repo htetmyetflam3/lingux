@@ -1,19 +1,21 @@
-// Public API — two guarded routers in front of the engine tokenizer.
+// Public API — two guarded routers in front of the engine Bridge.
 //
 //   handshakeRouter (strict rate limit)  POST /handshake
 //     Establishes the session<->engine binding: on success it GENERATES the
 //     engine session hash (the YYYYMMDD_HHMMSS_mmm shape getDateTimeHash
-//     mints in Bridge/logen.js) from this Express session and returns an
-//     opaque handle. No client-supplied hash is ever trusted. One handshake
-//     per session; repeats are 409.
+//     mints in Bridge/logen.js) from this Express session and pairs it with
+//     the signature 'public'. One handshake per session; repeats are 409.
+//     No client-supplied hash is ever trusted.
 //
 //   guardedApi (standard rate limit)     /tokenizer/...
-//     Handle-based read-back, valid only inside the session that minted it:
+//     Handle-based read-back, valid only inside the session that minted it.
+//     Each request hands { hash, signature: 'public', mode } to the engine
+//     Bridge and awaits the readback in the SAME HTTP response:
 //       GET    /tokenizer                 handles owned by this session
 //       GET    /tokenizer/:handle         handle metadata
-//       GET    /tokenizer/:handle/raw      invokeWithHash (tagged text)
-//       GET    /tokenizer/:handle/syllable invokeSyllableWithHash (positions)
-//       DELETE /tokenizer/:handle         drop the mapping (read routes only)
+//       GET    /tokenizer/:handle/raw      bridge mode 'raw' (tagged text)
+//       GET    /tokenizer/:handle/syllable bridge mode 'syllable' (positions)
+//       DELETE /tokenizer/:handle         drop the mapping
 //
 // Every limiter buckets per client IP; the engine hash -> handle map lives
 // ONLY in req.session, so a handle is meaningless outside its own session.
@@ -21,22 +23,19 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { config } from './config.mjs';
 import { createRateLimiter } from './rate-limit.mjs';
+import { bridgeInvoke, BridgeError } from './bridge.mjs';
+
+// The signature stamped on every call this API makes into the Bridge. The
+// Bridge routes on this field; Site calls will carry signature 'site' plus
+// their own (many) job fields.
+const PUBLIC_SIGNATURE = 'public';
 
 export const publicRouter = express.Router();
 publicRouter.use(express.json({ limit: '16kb', strict: true }));
 
-// tokenizer.js statically imports the Engine/main Bridge seam, which is not
-// wired yet. Import it lazily (and cache the module) so the web process still
-// boots; tokenizer read routes answer 503 until the Bridge exists.
-let tokenizerModule = null;
-async function loadTokenizer() {
-  if (!tokenizerModule) tokenizerModule = await import('./tokenizer.js');
-  return tokenizerModule;
-}
-
 // Engine hash generator — same contract as Bridge/logen.js getDateTimeHash(),
-// mirrored here because the plugin cannot import the (unwired) Bridge. Shape
-// must stay accepted by tokenizer.hashKind: /^\d{8}_\d{6}_\d{3}$/.
+// mirrored here because the plugin cannot import the (unwired) Bridge. Shape:
+// YYYYMMDD_HHMMSS_mmm.
 function mintEngineHash() {
   const now = new Date();
   const p2 = (n) => String(n).padStart(2, '0');
@@ -83,17 +82,11 @@ handshakeRouter.post('/handshake', handshakeLimit, async (req, res, next) => {
     }
 
     const engineHash = mintEngineHash();
-    const { hashKind } = await loadTokenizer();
-    const kind = hashKind(engineHash); // self-check: the minted shape must validate
-    if (kind !== 'engine') {
-      return res.status(500).json({ error: 'minted engine hash failed its own shape check' });
-    }
-
     const handle = crypto.randomBytes(16).toString('hex');
-    const entry = { engineHash, kind, createdAt: Date.now() };
+    const entry = { engineHash, signature: PUBLIC_SIGNATURE, createdAt: Date.now() };
     state.handles[handle] = entry;
-    state.handshake = { handle, engineHash, kind, createdAt: entry.createdAt };
-    return res.status(201).json({ handle, kind, engineHash });
+    state.handshake = { handle, ...entry };
+    return res.status(201).json({ handle, signature: PUBLIC_SIGNATURE, engineHash });
   } catch (err) {
     next(err);
   }
@@ -124,18 +117,22 @@ guardedApi.get('/tokenizer/:handle', (req, res) => {
   return res.status(200).json({ handle: req.params.handle, ...entry });
 });
 
-// Tokenizer as a router: raw tagged text read-back.
+// Single-request read-back: hand hash + signature to the Bridge and await its
+// result; the Bridge invokes invokeWithHash inside the engine side.
 guardedApi.get('/tokenizer/:handle/raw', async (req, res, next) => {
   try {
     const entry = lookupHandle(req, res);
     if (!entry) return;
-    const { invokeWithHash } = await loadTokenizer();
-    const text = await invokeWithHash(entry.engineHash);
+    const result = await bridgeInvoke({
+      hash: entry.engineHash,
+      signature: entry.signature,
+      mode: 'raw',
+    });
     return res.status(200).json({
       handle: req.params.handle,
       hash: entry.engineHash,
-      kind: entry.kind,
-      text,
+      signature: entry.signature,
+      text: result.text,
     });
   } catch (err) {
     next(err);
@@ -148,13 +145,16 @@ guardedApi.get('/tokenizer/:handle/syllable', async (req, res, next) => {
   try {
     const entry = lookupHandle(req, res);
     if (!entry) return;
-    const { invokeSyllableWithHash } = await loadTokenizer();
-    const positions = await invokeSyllableWithHash(entry.engineHash);
+    const result = await bridgeInvoke({
+      hash: entry.engineHash,
+      signature: entry.signature,
+      mode: 'syllable',
+    });
     return res.status(200).json({
       handle: req.params.handle,
       hash: entry.engineHash,
-      kind: entry.kind,
-      positions,
+      signature: entry.signature,
+      positions: result.positions,
     });
   } catch (err) {
     next(err);
@@ -176,9 +176,12 @@ guardedApi.delete('/tokenizer/:handle', (req, res) => {
 publicRouter.use(handshakeRouter);
 publicRouter.use(guardedApi);
 
-// Engine seam failures (missing Bridge, missing output file) are 503/404,
-// never a 200 with empty data.
+// Bridge rejections carry their own status; engine seam failures (missing
+// Bridge, missing output file) are 503/404, never a 200 with empty data.
 publicRouter.use((err, _req, res, _next) => {
+  if (err instanceof BridgeError) {
+    return res.status(err.status).json({ error: err.message });
+  }
   if (err?.code === 'ERR_MODULE_NOT_FOUND' || err?.code === 'MODULE_NOT_FOUND') {
     return res.status(503).json({ error: 'tokenizer engine seam not wired (Bridge missing)' });
   }

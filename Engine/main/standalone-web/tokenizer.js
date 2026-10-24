@@ -6,8 +6,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 // Engine deps are imported lazily: the Bridge seam (../Bridge/path.js) is not
-// wired yet, and hashKind() below needs none of them. Lazy imports let the web
-// process load this module and maintain the session<->hash map; only actual
+// wired yet. Lazy imports let the web process load this module; only actual
 // output read-back fails until the Bridge exists.
 let engineDeps = null;
 async function engine() {
@@ -85,36 +84,4 @@ export async function invokeSyllableWithHash(hash) {
     .split('\n')
     .map(formatter.toPositions)
     .filter((entry) => entry !== null);
-}
-
-/* ── Frontend entry ──────────────────────────────────────────────
-   The server branch never holds an engine hash. It holds its own ids
-   and the raw text:
-
-     visitorHash / userId   sha256 hex, 32 chars   cookie/cgen.js:15
-     formId                 crypto.randomUUID()    db/request.js:13
-     submitId               crypto.randomUUID()    generator/responses.js:21
-
-   Ours is  YYYYMMDD_HHMMSS_mmm , minted inside runMain().
-
-   openFsmConnection() in gateway/generator/string.js is still a stub —
-   it returns { connected: true, formId, submitId } and never reaches
-   the engine. This is the seam it was left waiting for: validate the
-   caller's id, run the pipeline, hand back BOTH ids so the submissions
-   row can be reconciled against our output files.
-   ─────────────────────────────────────────────────────────────── */
-
-const HASH_SHAPE = {
-  engine: /^\d{8}_\d{6}_\d{3}$/,
-  uuid: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-  session: /^[0-9a-f]{32}$/,
-};
-
-/** Which id shape is this? null means we refuse it. */
-export function hashKind(hash) {
-  if (typeof hash !== 'string') return null;
-  for (const kind of Object.keys(HASH_SHAPE)) {
-    if (HASH_SHAPE[kind].test(hash)) return kind;
-  }
-  return null;
 }
