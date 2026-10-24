@@ -22,10 +22,14 @@ import {
 import { readAndPrepare } from "../MonoSyllabism/generators/input.js";
 import { runSegmentor } from "../MonoSyllabism/main/phoneme/lexer.js";
 import { runBuild, runBuildPos } from "../MonoSyllabism/graph/build.js";
-import { bridge, bridgeSyllable } from "../Bridge/bridge.js";
+import {
+	bridge,
+	bridgeSyllable,
+	receiveCallerHash,
+	receiveInternalHash,
+} from "./bridge.js";
 import { resolveInputs, InputFile, resetWorkspace } from "../Bridge/path.js";
-import { setHash, resetHash } from "../MonoSyllabism/utilities/disk.js";
-import { getDateTimeHash } from "../Bridge/logen.js";
+import { resetHash } from "../MonoSyllabism/utilities/disk.js";
 import { invokeWithHash, hashKind } from "./initS.js";
 
 /* ── small helpers ───────────────────────────────────────────── */
@@ -224,15 +228,17 @@ export async function runMain(opts = {}) {
 			   so output files land as segmented_{theirId}_* and their existing
 			   invokeWithHash(theirId) reads them back. Validated because this
 			   string becomes a filename. */
-			const hash = opts.hash ?? getDateTimeHash();
-			setHash(hash);
+			const sessionHash =
+				opts.hash !== undefined
+					? receiveCallerHash(opts.hash)
+					: receiveInternalHash();
 			/* The kick (old phoneme/init.js, inlined): steps 1–3 —
 			   input read (stream.js/buffer.js) → normalizer → segmentor. */
 			const seg = runSegmentor(readAndPrepare(inputPath));
 			/* One flag, one chain — no unasked-for work, no second pass. */
 			const result = writeFlags.rawPos
-				? await bridge(seg, writeFlags, hash, inputPath)
-				: await bridgeSyllable(seg, writeFlags, hash, inputPath);
+				? await bridge(seg, writeFlags, sessionHash, inputPath)
+				: await bridgeSyllable(seg, writeFlags, sessionHash, inputPath);
 
 			pipelineEnd({ inputPath });
 			results.push({
@@ -240,7 +246,7 @@ export async function runMain(opts = {}) {
 				syllable: result.syllablePath,
 				rawPos: result.rawPosPath,
 				lineCount: result.lineCount,
-				hash,
+				hash: sessionHash,
 			});
 		} catch (err) {
 			pipelineError({ message: err.message, file: inputPath });

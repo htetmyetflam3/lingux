@@ -1,17 +1,38 @@
 // FILE: bridge/path.js
+// MERGED from dev-Bridge + main-Engine-Bridge + proofreading-Bridge.
+// The three copies were byte-identical except here; the only unique part was
+// the proofreading variant's configureWorkspace() + ENGINE_ROOT resolution,
+// which is kept below. The main/dev variant's fixed /File/... constants and
+// cwd-based resolvePath are recorded in comments.
+//
+// SCRATCH: every path value is a PLACEHOLDER with an obvious name. Real
+// locations get re-pointed in a later turn when the dirs move again.
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "node:url";
 
-// All runtime writes stay in an explicit workspace, never filesystem /File.
-const ENGINE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const WORK = path.resolve(ENGINE_ROOT, "../output/tagger/.work/default");
-let TREE_DIR = path.join(WORK, "tree");
-let LOG_DIR = path.join(WORK, "log");
-let OUTPUT_DIR = path.join(WORK, "out");
-let DATA_DIR = path.join(WORK, "data");
-const INPUT_DIR = path.join(WORK, "input") + path.sep;
+// PLACEHOLDER: proofreading variant computed this from the module URL;
+// main/dev variant had no engine root and resolved against process.cwd().
+const ENGINE_ROOT = "./placeholderFor-ENGINE-ROOT";
+// PLACEHOLDER: proofreading variant derived WORK = ENGINE_ROOT/../output/tagger/.work/default
+const WORK = "./placeholderFor-PROOFREADING-WORKSPACE";
 
+// main/dev variant fixed strings (kept for the re-point turn, not used as-is):
+//   TREE_DIR   = "/File/.tree/"
+//   LOG_DIR    = "File/.output/.log/"
+//   OUTPUT_DIR = "/File/.output/txt/"
+//   DATA_DIR   = "knowledge/isTreasure"
+//   INPUT_DIR  = "/File/input/"
+// Merged choice: mutable dirs (proofreading superset — configureWorkspace can
+// retarget each one per run; the main/dev fixed-string behavior is expressible
+// by simply never calling configureWorkspace).
+let TREE_DIR = "./placeholderFor-TREE-DIR";
+let LOG_DIR = "./placeholderFor-LOG-DIR";
+let OUTPUT_DIR = "./placeholderFor-OUTPUT-DIR";
+let DATA_DIR = "./placeholderFor-DATA-DIR";
+const INPUT_DIR = "./placeholderFor-INPUT-DIR" + path.sep;
+
+// UNIQUE TO PROOFREADING (did not exist in dev/main copies).
 // Called before importing/running the pipeline; dataDir holds a disposable
 // copy because the supplied POS builder removes rejected dictionary rows.
 export function configureWorkspace({ treeDir, logDir, outputDir, dataDir } = {}) {
@@ -67,9 +88,9 @@ export function InputFile() {
 }
 
 export function MasterFile() {
-	// Runtime default: the map copy. The readable plaintext lives at
-	// JSON_SOURCE_FILE for the build; at runtime readSecureText() serves the
-	// ".enc" twin beside this name, so callers never hold the readable name.
+	// main/dev variant returned plain MAP_MASTER_FILE;
+	// proofreading variant joined it under ENGINE_ROOT.
+	// Kept the proofreading form with the placeholder root.
 	return path.join(ENGINE_ROOT, MAP_MASTER_FILE);
 }
 
@@ -109,6 +130,8 @@ export function JscFile() {
 
 // ── Path Utility Functions ──
 export function resolvePath(p) {
+	// main/dev variant resolved against process.cwd();
+	// proofreading variant resolved against ENGINE_ROOT. Placeholder root kept.
 	return path.isAbsolute(p) ? p : path.resolve(ENGINE_ROOT, p);
 }
 
