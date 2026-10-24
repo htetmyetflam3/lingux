@@ -11,6 +11,9 @@
  * in this tree only so the two halves are written against the same core
  * and cannot drift apart unnoticed.
  *
+ * The shared core now lives at the top-level Bridge/logen/ (the future
+ * cross-engine lib); this file imports it from there directly.
+ *
  * Nothing in here imports the site half, and the site half does not import
  * this. Both import the core.
  *
@@ -31,9 +34,9 @@ import core, {
   bus, registerBadges, installBase, emitLog, appendFile, paint, palette as C,
   reportInc, reportSample, record, runChecks, defineCheck, stage,
   readTally, readCounts, showPairs, showCounts,
-} from './core.js';
+} from '../../Bridge/logen/core.js';
 
-export * from './core.js';
+export * from '../../Bridge/logen/core.js';
 
 registerBadges({
   NORMALIZE: { code: '\x1b[48;5;23m\x1b[38;5;231m', label: 'NORM' },
