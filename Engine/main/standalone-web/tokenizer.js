@@ -5,9 +5,22 @@
    Outputs:   delegates to Module B and returns the file text
    ═══════════════════════════════════════════════════════════════ */
 
-import { OutputFile, joinPath } from '../Bridge/path.js';
-import { readFileContent } from '../MonoSyllabism/utilities/stream.js';
-import { isBase, toPositions } from '../MonoSyllabism/utilities/formatter.js';
+// Engine deps are imported lazily: the Bridge seam (../Bridge/path.js) is not
+// wired yet, and hashKind() below needs none of them. Lazy imports let the web
+// process load this module and maintain the session<->hash map; only actual
+// output read-back fails until the Bridge exists.
+let engineDeps = null;
+async function engine() {
+  if (!engineDeps) {
+    const [path, stream, formatter] = await Promise.all([
+      import('../Bridge/path.js'),
+      import('../MonoSyllabism/utilities/stream.js'),
+      import('../MonoSyllabism/utilities/formatter.js'),
+    ]);
+    engineDeps = { path, stream, formatter };
+  }
+  return engineDeps;
+}
 
 /**
  * Accept a hash, build the segmented_{hash}_raw_pos.txt path,
@@ -16,9 +29,10 @@ import { isBase, toPositions } from '../MonoSyllabism/utilities/formatter.js';
  * @returns {Promise<string>} full file content
  */
 export async function invokeWithHash(hash) {
+  const { path, stream } = await engine();
   const filename = `segmented_${hash}_raw_pos.txt`;
-  const filePath = joinPath(OutputFile(), filename);
-  return await readFileContent(filePath);
+  const filePath = path.joinPath(path.OutputFile(), filename);
+  return await stream.readFileContent(filePath);
 }
 
 /* ── Positional syllable API ─────────────────────────────────────
@@ -62,13 +76,14 @@ export async function invokeWithHash(hash) {
  * @returns {Promise<Array<{index: string, syllable: string[]}>>}
  */
 export async function invokeSyllableWithHash(hash) {
+  const { path, stream, formatter } = await engine();
   const filename = `segmented_${hash}_syllable.txt`;
-  const filePath = joinPath(OutputFile(), filename);
-  const text = await readFileContent(filePath);
+  const filePath = path.joinPath(path.OutputFile(), filename);
+  const text = await stream.readFileContent(filePath);
 
   return text
     .split('\n')
-    .map(toPositions)
+    .map(formatter.toPositions)
     .filter((entry) => entry !== null);
 }
 
