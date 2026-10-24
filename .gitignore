@@ -1,0 +1,22 @@
+# Untracked directories
+
+*.venv*
+*output*
+*.output/
+*.log*
+*frontend/
+*__pycache__*
+/__pycache__/
+*package.lock.json*
+# Runtime build artifacts
+/node_modules/
+*node_modules*
+/output/
+dist
+coverage/
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+/mymap*
+*mymap*
