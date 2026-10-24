@@ -45,6 +45,12 @@ export const config = {
   sessionTtlMs: int(process.env.SESSION_TTL_MS, 8 * 60 * 60 * 1000, 60_000, 7 * 24 * 60 * 60 * 1000),
   cookieSecure: process.env.NODE_ENV === 'production',
   trustProxy: process.env.TRUST_PROXY === '1',
+  // Public API guards (rate-limit.mjs), fixed windows per client IP.
+  // The handshake mints the session hash, so it gets a much tighter budget.
+  handshakeWindowMs: int(process.env.HANDSHAKE_RATE_WINDOW_MS, 10 * 60_000, 1_000, 24 * 60 * 60_000),
+  handshakeMax: int(process.env.HANDSHAKE_RATE_MAX, 10, 1, 1_000),
+  apiWindowMs: int(process.env.API_RATE_WINDOW_MS, 60_000, 1_000, 60 * 60_000),
+  apiMax: int(process.env.API_RATE_MAX, 120, 1, 10_000),
   // Site caps both transfers at 64 MB; accept the same ceiling.
   maxSourceBytes: int(process.env.ENGINE_MAX_SOURCE_BYTES, 64 * 1024 * 1024, 1024, 256 * 1024 * 1024),
   maxResultBytes: int(process.env.ENGINE_MAX_RESULT_BYTES, 64 * 1024 * 1024, 1024, 256 * 1024 * 1024),
