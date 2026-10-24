@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "note": "Reviewed exceptions for format/repair_damage.py. Every entry was checked against input/ယဲ့နင်1-200.txt.",
+  "protected": [
+    {
+      "word": "ကေလာင်",
+      "reason": "'pen' (loanword, spelt with the vowel on the first consonant); absent from master.json, 9 occurrences, all correct"
+    },
+    {
+      "word": "စေတာ",
+      "reason": "causative စေ + တာ့/တာမည်; 12 occurrences, all correct"
+    },
+    {
+      "word": "သေလား",
+      "reason": "'dead or alive' (သေလား ရှင်လား); 1 occurrence"
+    },
+    {
+      "word": "စာပေရာင်",
+      "reason": "စာပေ + ရောင်ဝါ; the only ပေရာ in the book"
+    },
+    {
+      "word": "စေရာ",
+      "reason": "causative စေ + ရာတွင်/ရာနှဲ; 3 occurrences, 2 unambiguously correct, 1 ambiguous"
+    }
+  ],
+  "corrections": [
+    {
+      "from": "ငေကာ",
+      "to": "ကြော",
+      "expected": 261,
+      "reason": "ကြောင် is written ငေကာင်: the ြ was lost and a င left behind (ငေကာင့် -> ကြောင့်, ငေကာင်း -> ကြောင်း, ငေကာက် -> ကြောက်)"
+    },
+    {
+      "from": "မေကာက်",
+      "to": "မကြောက်",
+      "expected": 9,
+      "reason": "မကြောက် 'not afraid'; same lost ြ, and the window rule alone would give မကောက်"
+    },
+    {
+      "from": "သဘာတ၀ရား",
+      "to": "သဘာဝတရား",
+      "expected": 1,
+      "reason": "သဘာဝတရား: ဝ was dropped and the remaining ဝ typed as the digit ၀"
+    },
+    {
+      "from": "သဘာကျ",
+      "to": "သဘာဝကျ",
+      "expected": 2,
+      "reason": "သဘာဝကျကျ 'naturally'; ဝ dropped before a consonant"
+    },
+    {
+      "from": "သဘာအလှ",
+      "to": "သဘာဝအလှ",
+      "expected": 1,
+      "reason": "သဘာဝအလှ 'natural beauty'; ဝ dropped before a consonant"
+    }
+  ]
+}

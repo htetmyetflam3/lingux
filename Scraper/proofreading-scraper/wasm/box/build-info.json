@@ -1,0 +1,20 @@
+{
+  "runtime": "WASM only",
+  "plain_source_runtime": false,
+  "bytecode_fallback": false,
+  "input_sha256": {
+    "Engine/MonoSyllabism/mapbuilder/base/function.js": "378b5cd4698fe8760a8aaa1765c9bdb657374602ce2b239748fbe042f0f26288",
+    "Engine/MonoSyllabism/mapbuilder/base/normalize.js": "d1548c1c4b61887d64fbfe576fc676e241b6b1f8cc8300838375490b53ea1c1e",
+    "Engine/MonoSyllabism/mapbuilder/base/sourceMap.js": "00a4c0a1c3c774f68fdb31452241425ecfd2bd7741a9e4f8afcfa53aec79abc0",
+    "Engine/MonoSyllabism/mapbuilder/base/sourceMapper.js": "ed5df89a12ca7071b97cf025cb59978e3f689029293fd2e12b20c02f2c41e752",
+    "Engine/knowledge/isTreasure/master.json": "9eb066cae53698c0a499ec27d13a876ea3fd75f8e8c0c019e211e93f5a534701",
+    "scraper/wasm/box/c/shim.c": "eb2fb551846155bcc469e0b70eec20a45bb6a8386a99aa2f8f54e65cb5585f63",
+    "scraper/wasm/box/engine-api.mjs": "499a2b9ef0ffe3b68d7932c5837d9fd5740594a014ed3064b4776f16da033b88",
+    "scraper/wasm/box/build-payload.mjs": "24c81a7bdc86c047ce63380c5e78a2c6ab551825427f1f796810b267f0e3500c",
+    "scraper/wasm/box/loader.mjs": "fc2f362de257bed6f00230d19b6a6d1e53b2cc38dfb13b149e1dfab8c554bffb"
+  },
+  "box_sha256": "107ad3257d42b970b53c407a7ca092759723655ef30841777cfebb0de7c1190d",
+  "node": "v22.22.3",
+  "zig": "0.17.0",
+  "quickjs_commit": "6d46d07d04041b40f4f49eaa7fdebe44c314c699"
+}

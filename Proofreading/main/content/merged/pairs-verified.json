@@ -1,0 +1,1274 @@
+{
+ "method": "manual content verification: first 1-2 prose paragraphs of every chapter compared by eye across both editions",
+ "caution": "Content-verified, not positional. Burmese 1..61 = Chinese 1..61 (1:1). Chinese ch.61 was split into Burmese ch.61+62; Chinese ch.137 split into Burmese ch.138+139. Hence offset -1 for Burmese 63..138 and -2 for Burmese 140..195. Anchor: Burmese 195 = Chinese 193 (這些人口，可都是大周的底子 / ဤလူများသည် မဟာကျိုးပြည်ထောင်၏ အေခြခံဖြစ်သည်).",
+ "anchors": [
+  {
+   "chinese": 1,
+   "burmese": 1,
+   "evidence": "大周，帝都盛京 / မဟာကျိုးဧကရာဇ်တိုင်းပြည်၊ ရှန်းကျင်းနန်းမြို့တော်"
+  },
+  {
+   "chinese": 61,
+   "burmese": 61,
+   "evidence": "怪老頭放出飛劍 / အဘိုးကြီး ဓားပျံထုတ် (split: ch.61 content continues into Burmese 62, 蔡向高講述魏文通牛進喜出身)"
+  },
+  {
+   "chinese": 137,
+   "burmese": 138,
+   "evidence": "葉寧從來都堅信…做錯了事就一定要付出代價 / မျက်လုံးအတွက် မျက်လုံး (split: 劉瑾公道 scene continues into Burmese 139)"
+  },
+  {
+   "chinese": 193,
+   "burmese": 195,
+   "evidence": "這些人口，可都是大周的底子 / ဤလူများသည် မဟာကျိုးပြည်ထောင်၏ အေခြခံဖြစ်သည်"
+  }
+ ],
+ "source_defects_chinese": {
+  "garbled_titles": {
+   "64": "第六四意 (章 OCR-misread as 意, 十 dropped)",
+   "181": "第一百八十ー章 / 第一百ハ十一章 (一-> katakana ー, 八-> katakana ハ)"
+  },
+  "bare_number_headers": [
+   92,
+   101,
+   182
+  ],
+  "mislabeled_fragment_headers": [
+   "第六十一章…2",
+   "第八十一章…5/ (pagination fragments of ch.61)"
+  ],
+  "inline_glued_without_own_header": [
+   60,
+   65,
+   67,
+   68,
+   69,
+   71,
+   73,
+   74,
+   76,
+   77,
+   79,
+   80,
+   83,
+   84,
+   85,
+   97,
+   98,
+   99,
+   100,
+   103,
+   104,
+   105,
+   106,
+   107,
+   108,
+   164,
+   168
+  ]
+ },
+ "segments": [
+  {
+   "burmese": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61
+   ],
+   "chinese": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61
+   ]
+  },
+  {
+   "burmese": [
+    62
+   ],
+   "chinese": [
+    61
+   ]
+  },
+  {
+   "burmese": [
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74,
+    75,
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83,
+    84,
+    85,
+    86,
+    87,
+    88,
+    89,
+    90,
+    91,
+    92,
+    93,
+    94,
+    95,
+    96,
+    97,
+    98,
+    99,
+    100,
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110,
+    111,
+    112,
+    113,
+    114,
+    115,
+    116,
+    117,
+    118,
+    119,
+    120,
+    121,
+    122,
+    123,
+    124,
+    125,
+    126,
+    127,
+    128,
+    129,
+    130,
+    131,
+    132,
+    133,
+    134,
+    135,
+    136,
+    137,
+    138
+   ],
+   "chinese": [
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74,
+    75,
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83,
+    84,
+    85,
+    86,
+    87,
+    88,
+    89,
+    90,
+    91,
+    92,
+    93,
+    94,
+    95,
+    96,
+    97,
+    98,
+    99,
+    100,
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110,
+    111,
+    112,
+    113,
+    114,
+    115,
+    116,
+    117,
+    118,
+    119,
+    120,
+    121,
+    122,
+    123,
+    124,
+    125,
+    126,
+    127,
+    128,
+    129,
+    130,
+    131,
+    132,
+    133,
+    134,
+    135,
+    136,
+    137
+   ]
+  },
+  {
+   "burmese": [
+    139
+   ],
+   "chinese": [
+    137
+   ]
+  },
+  {
+   "burmese": [
+    140,
+    141,
+    142,
+    143,
+    144,
+    145,
+    146,
+    147,
+    148,
+    149,
+    150,
+    151,
+    152,
+    153,
+    154,
+    155,
+    156,
+    157,
+    158,
+    159,
+    160,
+    161,
+    162,
+    163,
+    164,
+    165,
+    166,
+    167,
+    168,
+    169,
+    170,
+    171,
+    172,
+    173,
+    174,
+    175,
+    176,
+    177,
+    178,
+    179,
+    180,
+    181,
+    182,
+    183,
+    184,
+    185,
+    186,
+    187,
+    188,
+    189,
+    190,
+    191,
+    192,
+    193,
+    194,
+    195
+   ],
+   "chinese": [
+    138,
+    139,
+    140,
+    141,
+    142,
+    143,
+    144,
+    145,
+    146,
+    147,
+    148,
+    149,
+    150,
+    151,
+    152,
+    153,
+    154,
+    155,
+    156,
+    157,
+    158,
+    159,
+    160,
+    161,
+    162,
+    163,
+    164,
+    165,
+    166,
+    167,
+    168,
+    169,
+    170,
+    171,
+    172,
+    173,
+    174,
+    175,
+    176,
+    177,
+    178,
+    179,
+    180,
+    181,
+    182,
+    183,
+    184,
+    185,
+    186,
+    187,
+    188,
+    189,
+    190,
+    191,
+    192,
+    193
+   ]
+  }
+ ],
+ "pairs": [
+  {
+   "chinese": 1,
+   "burmese": 1
+  },
+  {
+   "chinese": 2,
+   "burmese": 2
+  },
+  {
+   "chinese": 3,
+   "burmese": 3
+  },
+  {
+   "chinese": 4,
+   "burmese": 4
+  },
+  {
+   "chinese": 5,
+   "burmese": 5
+  },
+  {
+   "chinese": 6,
+   "burmese": 6
+  },
+  {
+   "chinese": 7,
+   "burmese": 7
+  },
+  {
+   "chinese": 8,
+   "burmese": 8
+  },
+  {
+   "chinese": 9,
+   "burmese": 9
+  },
+  {
+   "chinese": 10,
+   "burmese": 10
+  },
+  {
+   "chinese": 11,
+   "burmese": 11
+  },
+  {
+   "chinese": 12,
+   "burmese": 12
+  },
+  {
+   "chinese": 13,
+   "burmese": 13
+  },
+  {
+   "chinese": 14,
+   "burmese": 14
+  },
+  {
+   "chinese": 15,
+   "burmese": 15
+  },
+  {
+   "chinese": 16,
+   "burmese": 16
+  },
+  {
+   "chinese": 17,
+   "burmese": 17
+  },
+  {
+   "chinese": 18,
+   "burmese": 18
+  },
+  {
+   "chinese": 19,
+   "burmese": 19
+  },
+  {
+   "chinese": 20,
+   "burmese": 20
+  },
+  {
+   "chinese": 21,
+   "burmese": 21
+  },
+  {
+   "chinese": 22,
+   "burmese": 22
+  },
+  {
+   "chinese": 23,
+   "burmese": 23
+  },
+  {
+   "chinese": 24,
+   "burmese": 24
+  },
+  {
+   "chinese": 25,
+   "burmese": 25
+  },
+  {
+   "chinese": 26,
+   "burmese": 26
+  },
+  {
+   "chinese": 27,
+   "burmese": 27
+  },
+  {
+   "chinese": 28,
+   "burmese": 28
+  },
+  {
+   "chinese": 29,
+   "burmese": 29
+  },
+  {
+   "chinese": 30,
+   "burmese": 30
+  },
+  {
+   "chinese": 31,
+   "burmese": 31
+  },
+  {
+   "chinese": 32,
+   "burmese": 32
+  },
+  {
+   "chinese": 33,
+   "burmese": 33
+  },
+  {
+   "chinese": 34,
+   "burmese": 34
+  },
+  {
+   "chinese": 35,
+   "burmese": 35
+  },
+  {
+   "chinese": 36,
+   "burmese": 36
+  },
+  {
+   "chinese": 37,
+   "burmese": 37
+  },
+  {
+   "chinese": 38,
+   "burmese": 38
+  },
+  {
+   "chinese": 39,
+   "burmese": 39
+  },
+  {
+   "chinese": 40,
+   "burmese": 40
+  },
+  {
+   "chinese": 41,
+   "burmese": 41
+  },
+  {
+   "chinese": 42,
+   "burmese": 42
+  },
+  {
+   "chinese": 43,
+   "burmese": 43
+  },
+  {
+   "chinese": 44,
+   "burmese": 44
+  },
+  {
+   "chinese": 45,
+   "burmese": 45
+  },
+  {
+   "chinese": 46,
+   "burmese": 46
+  },
+  {
+   "chinese": 47,
+   "burmese": 47
+  },
+  {
+   "chinese": 48,
+   "burmese": 48
+  },
+  {
+   "chinese": 49,
+   "burmese": 49
+  },
+  {
+   "chinese": 50,
+   "burmese": 50
+  },
+  {
+   "chinese": 51,
+   "burmese": 51
+  },
+  {
+   "chinese": 52,
+   "burmese": 52
+  },
+  {
+   "chinese": 53,
+   "burmese": 53
+  },
+  {
+   "chinese": 54,
+   "burmese": 54
+  },
+  {
+   "chinese": 55,
+   "burmese": 55
+  },
+  {
+   "chinese": 56,
+   "burmese": 56
+  },
+  {
+   "chinese": 57,
+   "burmese": 57
+  },
+  {
+   "chinese": 58,
+   "burmese": 58
+  },
+  {
+   "chinese": 59,
+   "burmese": 59
+  },
+  {
+   "chinese": 60,
+   "burmese": 60
+  },
+  {
+   "chinese": 61,
+   "burmese": 61
+  },
+  {
+   "chinese": 61,
+   "burmese": 62
+  },
+  {
+   "chinese": 62,
+   "burmese": 63
+  },
+  {
+   "chinese": 63,
+   "burmese": 64
+  },
+  {
+   "chinese": 64,
+   "burmese": 65
+  },
+  {
+   "chinese": 65,
+   "burmese": 66
+  },
+  {
+   "chinese": 66,
+   "burmese": 67
+  },
+  {
+   "chinese": 67,
+   "burmese": 68
+  },
+  {
+   "chinese": 68,
+   "burmese": 69
+  },
+  {
+   "chinese": 69,
+   "burmese": 70
+  },
+  {
+   "chinese": 70,
+   "burmese": 71
+  },
+  {
+   "chinese": 71,
+   "burmese": 72
+  },
+  {
+   "chinese": 72,
+   "burmese": 73
+  },
+  {
+   "chinese": 73,
+   "burmese": 74
+  },
+  {
+   "chinese": 74,
+   "burmese": 75
+  },
+  {
+   "chinese": 75,
+   "burmese": 76
+  },
+  {
+   "chinese": 76,
+   "burmese": 77
+  },
+  {
+   "chinese": 77,
+   "burmese": 78
+  },
+  {
+   "chinese": 78,
+   "burmese": 79
+  },
+  {
+   "chinese": 79,
+   "burmese": 80
+  },
+  {
+   "chinese": 80,
+   "burmese": 81
+  },
+  {
+   "chinese": 81,
+   "burmese": 82
+  },
+  {
+   "chinese": 82,
+   "burmese": 83
+  },
+  {
+   "chinese": 83,
+   "burmese": 84
+  },
+  {
+   "chinese": 84,
+   "burmese": 85
+  },
+  {
+   "chinese": 85,
+   "burmese": 86
+  },
+  {
+   "chinese": 86,
+   "burmese": 87
+  },
+  {
+   "chinese": 87,
+   "burmese": 88
+  },
+  {
+   "chinese": 88,
+   "burmese": 89
+  },
+  {
+   "chinese": 89,
+   "burmese": 90
+  },
+  {
+   "chinese": 90,
+   "burmese": 91
+  },
+  {
+   "chinese": 91,
+   "burmese": 92
+  },
+  {
+   "chinese": 92,
+   "burmese": 93
+  },
+  {
+   "chinese": 93,
+   "burmese": 94
+  },
+  {
+   "chinese": 94,
+   "burmese": 95
+  },
+  {
+   "chinese": 95,
+   "burmese": 96
+  },
+  {
+   "chinese": 96,
+   "burmese": 97
+  },
+  {
+   "chinese": 97,
+   "burmese": 98
+  },
+  {
+   "chinese": 98,
+   "burmese": 99
+  },
+  {
+   "chinese": 99,
+   "burmese": 100
+  },
+  {
+   "chinese": 100,
+   "burmese": 101
+  },
+  {
+   "chinese": 101,
+   "burmese": 102
+  },
+  {
+   "chinese": 102,
+   "burmese": 103
+  },
+  {
+   "chinese": 103,
+   "burmese": 104
+  },
+  {
+   "chinese": 104,
+   "burmese": 105
+  },
+  {
+   "chinese": 105,
+   "burmese": 106
+  },
+  {
+   "chinese": 106,
+   "burmese": 107
+  },
+  {
+   "chinese": 107,
+   "burmese": 108
+  },
+  {
+   "chinese": 108,
+   "burmese": 109
+  },
+  {
+   "chinese": 109,
+   "burmese": 110
+  },
+  {
+   "chinese": 110,
+   "burmese": 111
+  },
+  {
+   "chinese": 111,
+   "burmese": 112
+  },
+  {
+   "chinese": 112,
+   "burmese": 113
+  },
+  {
+   "chinese": 113,
+   "burmese": 114
+  },
+  {
+   "chinese": 114,
+   "burmese": 115
+  },
+  {
+   "chinese": 115,
+   "burmese": 116
+  },
+  {
+   "chinese": 116,
+   "burmese": 117
+  },
+  {
+   "chinese": 117,
+   "burmese": 118
+  },
+  {
+   "chinese": 118,
+   "burmese": 119
+  },
+  {
+   "chinese": 119,
+   "burmese": 120
+  },
+  {
+   "chinese": 120,
+   "burmese": 121
+  },
+  {
+   "chinese": 121,
+   "burmese": 122
+  },
+  {
+   "chinese": 122,
+   "burmese": 123
+  },
+  {
+   "chinese": 123,
+   "burmese": 124
+  },
+  {
+   "chinese": 124,
+   "burmese": 125
+  },
+  {
+   "chinese": 125,
+   "burmese": 126
+  },
+  {
+   "chinese": 126,
+   "burmese": 127
+  },
+  {
+   "chinese": 127,
+   "burmese": 128
+  },
+  {
+   "chinese": 128,
+   "burmese": 129
+  },
+  {
+   "chinese": 129,
+   "burmese": 130
+  },
+  {
+   "chinese": 130,
+   "burmese": 131
+  },
+  {
+   "chinese": 131,
+   "burmese": 132
+  },
+  {
+   "chinese": 132,
+   "burmese": 133
+  },
+  {
+   "chinese": 133,
+   "burmese": 134
+  },
+  {
+   "chinese": 134,
+   "burmese": 135
+  },
+  {
+   "chinese": 135,
+   "burmese": 136
+  },
+  {
+   "chinese": 136,
+   "burmese": 137
+  },
+  {
+   "chinese": 137,
+   "burmese": 138
+  },
+  {
+   "chinese": 137,
+   "burmese": 139
+  },
+  {
+   "chinese": 138,
+   "burmese": 140
+  },
+  {
+   "chinese": 139,
+   "burmese": 141
+  },
+  {
+   "chinese": 140,
+   "burmese": 142
+  },
+  {
+   "chinese": 141,
+   "burmese": 143
+  },
+  {
+   "chinese": 142,
+   "burmese": 144
+  },
+  {
+   "chinese": 143,
+   "burmese": 145
+  },
+  {
+   "chinese": 144,
+   "burmese": 146
+  },
+  {
+   "chinese": 145,
+   "burmese": 147
+  },
+  {
+   "chinese": 146,
+   "burmese": 148
+  },
+  {
+   "chinese": 147,
+   "burmese": 149
+  },
+  {
+   "chinese": 148,
+   "burmese": 150
+  },
+  {
+   "chinese": 149,
+   "burmese": 151
+  },
+  {
+   "chinese": 150,
+   "burmese": 152
+  },
+  {
+   "chinese": 151,
+   "burmese": 153
+  },
+  {
+   "chinese": 152,
+   "burmese": 154
+  },
+  {
+   "chinese": 153,
+   "burmese": 155
+  },
+  {
+   "chinese": 154,
+   "burmese": 156
+  },
+  {
+   "chinese": 155,
+   "burmese": 157
+  },
+  {
+   "chinese": 156,
+   "burmese": 158
+  },
+  {
+   "chinese": 157,
+   "burmese": 159
+  },
+  {
+   "chinese": 158,
+   "burmese": 160
+  },
+  {
+   "chinese": 159,
+   "burmese": 161
+  },
+  {
+   "chinese": 160,
+   "burmese": 162
+  },
+  {
+   "chinese": 161,
+   "burmese": 163
+  },
+  {
+   "chinese": 162,
+   "burmese": 164
+  },
+  {
+   "chinese": 163,
+   "burmese": 165
+  },
+  {
+   "chinese": 164,
+   "burmese": 166
+  },
+  {
+   "chinese": 165,
+   "burmese": 167
+  },
+  {
+   "chinese": 166,
+   "burmese": 168
+  },
+  {
+   "chinese": 167,
+   "burmese": 169
+  },
+  {
+   "chinese": 168,
+   "burmese": 170
+  },
+  {
+   "chinese": 169,
+   "burmese": 171
+  },
+  {
+   "chinese": 170,
+   "burmese": 172
+  },
+  {
+   "chinese": 171,
+   "burmese": 173
+  },
+  {
+   "chinese": 172,
+   "burmese": 174
+  },
+  {
+   "chinese": 173,
+   "burmese": 175
+  },
+  {
+   "chinese": 174,
+   "burmese": 176
+  },
+  {
+   "chinese": 175,
+   "burmese": 177
+  },
+  {
+   "chinese": 176,
+   "burmese": 178
+  },
+  {
+   "chinese": 177,
+   "burmese": 179
+  },
+  {
+   "chinese": 178,
+   "burmese": 180
+  },
+  {
+   "chinese": 179,
+   "burmese": 181
+  },
+  {
+   "chinese": 180,
+   "burmese": 182
+  },
+  {
+   "chinese": 181,
+   "burmese": 183
+  },
+  {
+   "chinese": 182,
+   "burmese": 184
+  },
+  {
+   "chinese": 183,
+   "burmese": 185
+  },
+  {
+   "chinese": 184,
+   "burmese": 186
+  },
+  {
+   "chinese": 185,
+   "burmese": 187
+  },
+  {
+   "chinese": 186,
+   "burmese": 188
+  },
+  {
+   "chinese": 187,
+   "burmese": 189
+  },
+  {
+   "chinese": 188,
+   "burmese": 190
+  },
+  {
+   "chinese": 189,
+   "burmese": 191
+  },
+  {
+   "chinese": 190,
+   "burmese": 192
+  },
+  {
+   "chinese": 191,
+   "burmese": 193
+  },
+  {
+   "chinese": 192,
+   "burmese": 194
+  },
+  {
+   "chinese": 193,
+   "burmese": 195
+  }
+ ]
+}

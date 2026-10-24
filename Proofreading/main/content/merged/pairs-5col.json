@@ -1,0 +1,21 @@
+{
+  "pairing": "verified",
+  "caution": "content-verified alignment by opening-paragraph comparison: Burmese 1..61 = Chinese 1..61; Chinese 61 split across Burmese 61+62; Burmese 63..138 = Chinese 62..137; Chinese 137 split across Burmese 138+139; Burmese 140..195 = Chinese 138..193. Anchor: Burmese 195 = Chinese 193 (這些人口，可都是大周的底子). Chinese 194..408 have no Burmese counterpart.",
+  "output": "content/merged/episodes-5col.txt",
+  "chinese_chapters": 427,
+  "burmese_chapters": 195,
+  "episodes_written": 195,
+  "matched_pairs": 195,
+  "unmatched_chinese": 0,
+  "unmatched_burmese": 0,
+  "mt_columns": [
+    "zh-en",
+    "en-zh",
+    "zh-my"
+  ],
+  "mt_present": {
+    "zh-en": 0,
+    "en-zh": 0,
+    "zh-my": 0
+  }
+}

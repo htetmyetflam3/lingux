@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/htetmyetflam3/scraper",
+  "commit": "8914406feef263443a34aba9a0bc189e10b824af",
+  "path": "wasm/",
+  "engine_source": "engine/MonoSyllabism/mapbuilder/base/",
+  "runtime": "WASM only; plain sources are build/test inputs only"
+}
