@@ -26,7 +26,7 @@ import { createEngineQueueRouter } from "./Backend/gateway/api/engineCollect.js"
 import { createCurlRouter, curlEndpointBanner } from "./Backend/gateway/api/curl.js";
 import { createHttpConsoleLogger } from "./Backend/gateway/proxy/httpLog.js";
 import { installPassiveLog, checksEnabled } from "../Bridge/logen/site.js";
-import { runSelfTests } from "../Logen/site_logen/selftest.js";
+import { runSelfTests } from "./site_logen/selftest.js";
 import {
   engineConfig,
   createEngineDispatcher,
