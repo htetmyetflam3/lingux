@@ -24,3 +24,6 @@ Thumbs.db
 # Local secrets (never commit) and the sealed-master decrypt cache
 /.env
 /master.json.cache
+
+# fix-import.mjs --unused report (generated on demand, never committed)
+unused-exports.json

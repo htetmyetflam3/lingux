@@ -20,6 +20,13 @@
  *   node tools/fix-import.mjs              # scan ".", climb freely upward
  *   node tools/fix-import.mjs host         # scan ./host, climb freely upward
  *   node tools/fix-import.mjs ./ ../../    # scan ".", never claw above ./../..
+ *
+ * Unused-export mode (pure downscan, never climbs, never rewrites anything):
+ *   node tools/fix-import.mjs --unused ./
+ *   The given dir is both start and ceiling: it reuses the normal indexing
+ *   phase unchanged, then reports every exported name no scanned file imports.
+ *   Over 50 unused exports and the report is also written to disk beside the
+ *   scanned dir as unused-exports.json.
  */
 
 import fs from 'fs';
@@ -49,9 +56,14 @@ let importsBroken = 0;
 // the resolved start dir itself, so "../../" means two parents above the
 // scanned dir regardless of cwd or this script's own location.
 // ---------------------------------------------------------------------------
-const positionals = process.argv.slice(2).filter(a => !a.startsWith('--'));
+const argv = process.argv.slice(2);
+const UNUSED_MODE = argv.includes('--unused');
+const positionals = argv.filter(a => !a.startsWith('--'));
 const START_DIR = path.resolve(positionals[0] || '.');
-const CLIMB_CEILING = positionals[1] ? path.resolve(START_DIR, positionals[1]) : null;
+// --unused is a pure downscan: the start dir itself is the ceiling, so the
+// second positional ceiling is irrelevant in that mode.
+const CLIMB_CEILING = UNUSED_MODE ? START_DIR
+  : (positionals[1] ? path.resolve(START_DIR, positionals[1]) : null);
 const ROOT_MARKERS = ['package.json', '.git', 'node_modules'];
 const MAX_ROOT_CLIMB = 6;
 
@@ -79,7 +91,8 @@ function findProjectRoot(startDir) {
   return startDir;
 }
 
-const PROJECT_ROOT = findProjectRoot(START_DIR);
+// Unused mode never discovers a root above the scanned dir: it walks down only.
+const PROJECT_ROOT = UNUSED_MODE ? START_DIR : findProjectRoot(START_DIR);
 
 // ---------------------------------------------------------------------------
 // Indexes
@@ -107,16 +120,30 @@ function stripComments(src) {
 function indexExports(filePath, content) {
   const src = stripComments(content);
 
-  const declRe = /export\s+(?:async\s+)?(?:function|class)\s+([A-Za-z_$][\w$]*)/g;
+  // function\s*\*? also covers `export function* g` and `export async function* g`
+  // — generators were the one named-export form this regex did not index, so an
+  // importer of a generator behind a wrong/moved filename looked unresolvable.
+  // Keyword-gated so a stray '*' elsewhere can never overmatch: the star is
+  // only consumed directly after `function`, and `function*g` (no space) is
+  // accepted too. Covers function, async function, function*/async function*
+  // generators and class — nothing else can start these tokens.
+  const declRe = /export\s+(?:async\s+)?(?:function\s*\*\s*|function\s+|class\s+)([A-Za-z_$][\w$]*)/g;
   const varRe = /export\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g;
-  const listRe = /export\s*\{([^}]+)\}/g;
+  // Braces renamed wholesale (`export { x } as default/ns`) expose ONLY the
+  // rename, never the local brace names — exclude them from the plain list re.
+  const listRe = /export\s*\{([^}]+)\}(?!\s*as\b)/g;
+  const renamedBraceRe = /export\s*\{[^}]*\}\s*as\s+([A-Za-z_$][\w$]*)\b/g;
   const starRe = /export\s+\*\s+from\s+['"][^'"]+['"]/g;
   const nsRe = /export\s+\*\s+as\s+([A-Za-z_$][\w$]*)\s+from\s+['"][^'"]+['"]/g;
-  const defaultNamedRe = /export\s+default\s+(?:class|function)\s+([A-Za-z_$][\w$]*)/g;
+  // No named regex for `export default function/class X`: the external name is
+  // always just `default` (X is the local binding), already added by the generic
+  // default test below. Indexing X here overmatched and produced phantom
+  // unused-export reports and wrong fix candidates.
 
   let m;
   while ((m = declRe.exec(src)) !== null) addExport(filePath, m[1]);
   while ((m = varRe.exec(src)) !== null) addExport(filePath, m[1]);
+  while ((m = renamedBraceRe.exec(src)) !== null) addExport(filePath, m[1]);
   while ((m = listRe.exec(src)) !== null) {
     m[1].split(',').forEach(part => {
       const segs = part.trim().split(/\s+as\s+/);
@@ -128,7 +155,6 @@ function indexExports(filePath, content) {
   while ((m = starRe.exec(src)) !== null) addExport(filePath, '*');
   while ((m = nsRe.exec(src)) !== null) addExport(filePath, m[1]);
   if (/export\s+default\b/.test(src)) addExport(filePath, 'default');
-  while ((m = defaultNamedRe.exec(src)) !== null) addExport(filePath, m[1]);
 }
 
 function ensureIndexed(filePath) {
@@ -202,10 +228,13 @@ function extractImportInfo(fullImport, importPath) {
   let defaultBinding = null;
   let isStar = false;
 
+  // indexOf points just past the opening quote, so beforePath carries that
+  // quote; strip it together with `from` or a bare quote-only statement
+  // (side-effect / dynamic import) is treated as having no bindings.
   const beforePath = fullImport.slice(0, fullImport.indexOf(importPath));
-  let stmt = beforePath.replace(/^import\s*/, '').replace(/\s+from\s*$/, '').trim();
+  let stmt = beforePath.replace(/^import\s*/, '').replace(/\s+from\s*['"]?$/, '').trim();
 
-  if (!stmt) return { names, defaultBinding, isStar }; // side-effect import
+  if (!stmt || stmt === "'" || stmt === '"') return { names, defaultBinding, isStar }; // side-effect import
   if (stmt.startsWith('type ')) stmt = stmt.slice(5).trim();
 
   if (stmt.startsWith('*')) {
@@ -439,7 +468,85 @@ async function fixFile(filePath) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// --unused: final-stage differentiation over the EXISTING scan/index phase.
+// No new indexer, no upward walk, no source rewrites. It only asks the index
+// built above which exported names are never named by any scanned import.
+// ---------------------------------------------------------------------------
+function reportUnusedExports() {
+  // Resolved imports give per-file precision; an import whose path does not
+  // resolve falls back to a global name set, so a broken tree can never make a
+  // genuinely-used export look unused (the conservative error for this report).
+  const usedByFile = new Map(); // absPath -> Set<imported name>
+  const usedNamesGlobal = new Set();
+  const starImportedFiles = new Set(); // `import * as ns` consumes the whole module
+
+  for (const file of allFiles) {
+    if (selfFiles.has(file)) continue;
+    const content = fs.readFileSync(file, 'utf-8');
+    for (const imp of parseImports(content)) {
+      if (imp.isStar) {
+        const target = resolveImportPath(file, imp.path);
+        if (target) starImportedFiles.add(target);
+        continue;
+      }
+      if (!imp.names.length) continue; // side-effect / dynamic import: no named use
+      const target = resolveImportPath(file, imp.path);
+      if (target) {
+        if (!usedByFile.has(target)) usedByFile.set(target, new Set());
+        for (const n of imp.names) usedByFile.get(target).add(n);
+      } else {
+        for (const n of imp.names) usedNamesGlobal.add(n);
+      }
+    }
+  }
+
+  const report = [];
+  let totalUnused = 0;
+  for (const [file, names] of fileExports) {
+    if (selfFiles.has(file) || starImportedFiles.has(file)) continue;
+    const usedHere = usedByFile.get(file);
+    const unused = [...names]
+      .filter(n => n !== '*' && !usedNamesGlobal.has(n) && !(usedHere && usedHere.has(n)))
+      .sort();
+    if (unused.length) {
+      report.push({ file: path.relative(PROJECT_ROOT, file), unusedExports: unused });
+      totalUnused += unused.length;
+    }
+  }
+  report.sort((a, b) => a.file.localeCompare(b.file));
+
+  console.log('='.repeat(50));
+  console.log(`Unused-export scan (down only, no climb): ${PROJECT_ROOT}`);
+  if (!report.length) {
+    console.log('No unused exports: every indexed export is imported somewhere in the scanned tree.');
+    return;
+  }
+  for (const entry of report) {
+    console.log(`\n  ${entry.file}`);
+    for (const name of entry.unusedExports) console.log(`    - ${name}`);
+  }
+  console.log('\n' + '-'.repeat(50));
+  console.log(`Total: ${totalUnused} unused export${totalUnused === 1 ? '' : 's'} across ${report.length} file${report.length === 1 ? '' : 's'}.`);
+
+  if (totalUnused > 50) {
+    const out = path.join(PROJECT_ROOT, 'unused-exports.json');
+    fs.writeFileSync(out, JSON.stringify({
+      scannedDir: PROJECT_ROOT,
+      totalUnusedExports: totalUnused,
+      filesWithUnusedExports: report.length,
+      files: report,
+    }, null, 2) + '\n', 'utf-8');
+    console.log(`Over 50 unused exports — full report written to ${out}`);
+  }
+}
+
 (async () => {
+  if (UNUSED_MODE) {
+    reportUnusedExports();
+    rl.close();
+    return;
+  }
   for (const f of allFiles) {
     if (selfFiles.has(f)) continue;
     await fixFile(f);
