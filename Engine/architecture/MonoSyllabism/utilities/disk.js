@@ -39,6 +39,8 @@ export function createStreamWriter(outputDir = OutputFile(), suffix = "", flushL
 	const outputPath = joinPath(outputDir, `segmented_${ts}${suffixPart}.txt`);
 	let lineCount = 0;
 	let buffer = "";
+	// A fresh checkout ships no runtime workspace; the writer owns its dir.
+	fs.mkdirSync(outputDir, { recursive: true });
 	fs.writeFileSync(outputPath, "", "utf8");
 	writerStart({ outputDir, lineCount: 0 });
 
