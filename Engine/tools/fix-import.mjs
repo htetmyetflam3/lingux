@@ -27,6 +27,13 @@
  *   phase unchanged, then reports every exported name no scanned file imports.
  *   Over 50 unused exports and the report is also written to disk beside the
  *   scanned dir as unused-exports.json.
+ *
+ * Import coverage: static import/export variants, generators (function*),
+ * renamed brace exports, `const { a, b: local } = await import('x')` and the
+ * positional `const [{..},{..}] = await Promise.all([import('x'), ...])` form.
+ * Computed specifiers (import(varName)), namespace imports without member
+ * analysis, and .then()-chained dynamic imports stay conservative: they never
+ * produce a candidate or an unused verdict, only a skip.
  */
 
 import fs from 'fs';
@@ -176,7 +183,12 @@ function ensureIndexed(filePath) {
 }
 
 function isDotFile(name) { return name.startsWith('.'); }
-function shouldSkipDir(name) { return name === 'node_modules' || name === '.git' || isDotFile(name); }
+// dist holds built/bundled output (minified vendor bundles included): never
+// authored source, so its single-letter re-exports are noise for both the
+// import fixer and the unused-export report.
+function shouldSkipDir(name) {
+  return name === 'node_modules' || name === '.git' || name === 'dist' || isDotFile(name);
+}
 
 function scanTree(dir, skipDirs = new Set()) {
   const out = [];
@@ -209,6 +221,23 @@ console.log(`Indexed exports from ${realCount} files.\n`);
 // Import parsing
 // ---------------------------------------------------------------------------
 const IMPORT_RE = /import\s+(?:type\s+)?(?:(?:\{[^}]*\}|[A-Za-z_$][\w$]*(?:\s*,\s*\{[^}]*\})?|\*\s+as\s+\w+)\s+from\s+)?['"]([^'"]+)['"]|import\s*\(['"]([^'"]+)['"]\)/g;
+// Direct destructured dynamic import: `const { a, b: local } = await import('x')`.
+// A bare `const m = await import('x')` namespace import is deliberately excluded:
+// without data-flow analysis its consumed members cannot be named, so it keeps
+// the conservative no-names treatment. The Promise.all([import(...)]) array form
+// is likewise unmatchable without pairing logic and stays a known limitation.
+const DYNAMIC_DESTRUCTURED_RE = /(?:const|let|var)\s*\{([^}]+)\}\s*=\s*await\s*import\(\s*['"]([^'"]+)['"]\s*\)/g;
+// Positional Promise.all form:
+//   const [{ a }, { b: local }] = await Promise.all([import('x'), import('y')]);
+// Strict shape only: flat array of plain object patterns paired 1:1 with
+// string-literal import() calls. Anything nested/spread/non-literal makes the
+// match skip itself, so no other code shape can be misread by this extension.
+const PROMISE_ALL_RE = /(?:const|let|var)\s*(\[[\s\S]*?\])\s*=\s*await\s*Promise\.all\(\s*\[([\s\S]*?)\]\s*\)/g;
+
+function braceRemoteNames(group) {
+  return group.split(',').map(part => part.trim().split(':')[0].trim())
+    .filter(name => /^[A-Za-z_$][\w$]*$/.test(name));
+}
 
 function parseImports(content) {
   const out = [];
@@ -220,7 +249,43 @@ function parseImports(content) {
     const pIdx = m.index + full.indexOf(p);
     out.push({ path: p, pIdx, pEnd: pIdx + p.length, ...extractImportInfo(full, p) });
   }
-  return out;
+  DYNAMIC_DESTRUCTURED_RE.lastIndex = 0;
+  while ((m = DYNAMIC_DESTRUCTURED_RE.exec(content)) !== null) {
+    const p = m[2];
+    const full = m[0];
+    const pIdx = m.index + full.indexOf(p);
+    // Destructuring renames with a colon (`{ remote: local }`); the exporter
+    // must provide the name on the LEFT, the local binding is never rewritten.
+    const names = braceRemoteNames(m[1]);
+    out.push({ path: p, pIdx, pEnd: pIdx + p.length, names, defaultBinding: null, isStar: false });
+  }
+  PROMISE_ALL_RE.lastIndex = 0;
+  while ((m = PROMISE_ALL_RE.exec(content)) !== null) {
+    const full = m[0];
+    const groups = [...m[1].matchAll(/\{([^{}]*)\}/g)].map(g => g[1]);
+    const paths = [...m[2].matchAll(/import\(\s*['"]([^'"]+)['"]\s*\)/g)].map(g => g[1]);
+    // Strict bail-outs: flat object patterns only, positional 1:1 pairing,
+    // no spread/default/nesting, and the RHS must be nothing but import() calls.
+    const strictLhs = /^\s*\[\s*(?:\{[^{}]*\}\s*,\s*)*\{[^{}]*\}\s*\]\s*$/.test(m[1]);
+    const strictRhs = m[2].replace(/import\(\s*['"][^'"]+['"]\s*\)/g, '').replace(/[\s,]/g, '') === '';
+    if (!strictLhs || !strictRhs || groups.length !== paths.length || groups.length === 0) continue;
+    paths.forEach((p, i) => {
+      const pIdx = m.index + full.indexOf(p);
+      out.push({
+        path: p, pIdx, pEnd: pIdx + p.length,
+        names: braceRemoteNames(groups[i]), defaultBinding: null, isStar: false,
+      });
+    });
+  }
+  // A destructured dynamic import also matches the bare dynamic alternative;
+  // collapse the duplicate span, keeping the record that actually carries names.
+  const bySpan = new Map();
+  for (const record of out) {
+    const key = `${record.pIdx}:${record.pEnd}`;
+    const prev = bySpan.get(key);
+    if (!prev || (!prev.names.length && record.names.length)) bySpan.set(key, record);
+  }
+  return [...bySpan.values()];
 }
 
 function extractImportInfo(fullImport, importPath) {
@@ -254,8 +319,12 @@ function extractImportInfo(fullImport, importPath) {
     if (braceMatch) {
       for (const part of braceMatch[1].split(',')) {
         const segs = part.trim().split(/\s+as\s+/);
-        const name = segs[segs.length - 1].trim();
-        if (name && /^[A-Za-z_$][\w$]*$/.test(name)) names.push(name);
+        // The candidate must export the REMOTE name (segment before `as`);
+        // the local alias after `as` is only a binding in the importing file,
+        // which this tool never rewrites. Searching by alias used to make
+        // `import { Three as T }` unresolvable whenever T != Three.
+        const remote = segs[0].trim();
+        if (remote && /^[A-Za-z_$][\w$]*$/.test(remote)) names.push(remote);
       }
     }
   } else if (!comboMatch) {
