@@ -1,4 +1,4 @@
-import { TreeFile, DataFile, MasterFile, resolvePath } from '../../../Bridge/path.js';
+import { TreeFile, DataFile, MasterFile, resolvePath } from '../../../bridge/path.js';
 import { readSecureText, readSecureJson } from '../../../MonoSyllabism/map/secure.js';
 import fs from 'fs';
 import path from 'path';

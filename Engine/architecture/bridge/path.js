@@ -2,35 +2,30 @@
 // MERGED from dev-Bridge + main-Engine-Bridge + proofreading-Bridge.
 // The three copies were byte-identical except here; the only unique part was
 // the proofreading variant's configureWorkspace() + ENGINE_ROOT resolution,
-// which is kept below. The main/dev variant's fixed /File/... constants and
-// cwd-based resolvePath are recorded in comments.
+// which is kept below.
 //
-// SCRATCH: every path value is a PLACEHOLDER with an obvious name. Real
-// locations get re-pointed in a later turn when the dirs move again.
+// ENGINE BOUNDARY: every path is anchored to the architecture root derived
+// from this file's own URL (architecture/bridge/path.js -> ../..), never to
+// process.cwd() and never to anything above the Engine directory. The engine
+// resolves only inside itself; configureWorkspace() can retarget the mutable
+// dirs at runtime but still hands back absolute paths under the engine.
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "node:url";
 
-// PLACEHOLDER: proofreading variant computed this from the module URL;
-// main/dev variant had no engine root and resolved against process.cwd().
-const ENGINE_ROOT = "./placeholderFor-ENGINE-ROOT";
-// PLACEHOLDER: proofreading variant derived WORK = ENGINE_ROOT/../output/tagger/.work/default
-const WORK = "./placeholderFor-PROOFREADING-WORKSPACE";
+// architecture/  — this file sits at architecture/bridge/path.js, so one
+// level up from bridge/ is the engine (architecture) root.
+const ENGINE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+// Mutable per-run workspace; configureWorkspace() may retarget individual dirs.
+const WORKSPACE = path.join(ENGINE_ROOT, "workspace");
 
-// main/dev variant fixed strings (kept for the re-point turn, not used as-is):
-//   TREE_DIR   = "/File/.tree/"
-//   LOG_DIR    = "File/.output/.log/"
-//   OUTPUT_DIR = "/File/.output/txt/"
-//   DATA_DIR   = "knowledge/isTreasure"
-//   INPUT_DIR  = "/File/input/"
-// Merged choice: mutable dirs (proofreading superset — configureWorkspace can
-// retarget each one per run; the main/dev fixed-string behavior is expressible
-// by simply never calling configureWorkspace).
-let TREE_DIR = "./placeholderFor-TREE-DIR";
-let LOG_DIR = "./placeholderFor-LOG-DIR";
-let OUTPUT_DIR = "./placeholderFor-OUTPUT-DIR";
-let DATA_DIR = "./placeholderFor-DATA-DIR";
-const INPUT_DIR = "./placeholderFor-INPUT-DIR" + path.sep;
+// Prebuilt trees ship in .cache-tree (syllable/pos/rtl tree + mapped rows),
+// so the runtime LOADS them — no build step is part of running the engine.
+let TREE_DIR = path.join(ENGINE_ROOT, ".cache-tree");
+let LOG_DIR = path.join(WORKSPACE, "log");
+let OUTPUT_DIR = path.join(WORKSPACE, "output");
+let DATA_DIR = path.join(ENGINE_ROOT, "knowledge", "isTreasure");
+const INPUT_DIR = path.join(ENGINE_ROOT, "init", "File", "input") + path.sep;
 
 // UNIQUE TO PROOFREADING (did not exist in dev/main copies).
 // Called before importing/running the pipeline; dataDir holds a disposable
@@ -80,7 +75,7 @@ export function resolveInputs(src) {
 
 	if (fs.existsSync(abs)) return [abs];
 
-	throw new Error(`Input not fo6und: ${abs}`);
+	throw new Error(`Input not found: ${abs}`);
 }
 
 export function InputFile() {
@@ -88,9 +83,8 @@ export function InputFile() {
 }
 
 export function MasterFile() {
-	// main/dev variant returned plain MAP_MASTER_FILE;
-	// proofreading variant joined it under ENGINE_ROOT.
-	// Kept the proofreading form with the placeholder root.
+	// The merged engine keeps the proofreading form: always anchored to the
+	// ENGINE_ROOT derived from this file's own URL, never process.cwd().
 	return path.join(ENGINE_ROOT, MAP_MASTER_FILE);
 }
 
@@ -130,8 +124,8 @@ export function JscFile() {
 
 // ── Path Utility Functions ──
 export function resolvePath(p) {
-	// main/dev variant resolved against process.cwd();
-	// proofreading variant resolved against ENGINE_ROOT. Placeholder root kept.
+	// Engine-boundary rule: relative strings resolve against ENGINE_ROOT (this
+	// file's anchored root), never against the caller's process.cwd().
 	return path.isAbsolute(p) ? p : path.resolve(ENGINE_ROOT, p);
 }
 
@@ -300,8 +294,10 @@ export function onPathEnsure(dirPath, reset = null) {
 }
 
 export function resetWorkspace(opts = null) {
-	const targets = [GetTreeDir(), GetOutputDir(), GetLogDir()];
-	for (const dir of targets) {
-		onPathEnsure(dir, opts);
-	}
+	// The tree is a READ-ONLY prebuilt input in .cache-tree: ensure it exists
+	// but never clean it (a run must not delete the maps it loads). Only the
+	// per-run output and log dirs are wiped between runs.
+	onPathEnsure(GetTreeDir(), false);
+	onPathEnsure(GetOutputDir(), opts);
+	onPathEnsure(GetLogDir(), opts);
 }

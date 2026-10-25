@@ -56,7 +56,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { configure, grammarPipeline } from "../init/cli.js";
+import { configure, grammarPipeline } from "../architecture/init/cli.js";
 import { invokeSyllableWithHash, hashKind } from "../init/initS.js";
 import { getDateTimeHash } from "../Bridge/logen.js";
 

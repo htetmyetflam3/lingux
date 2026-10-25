@@ -1,12 +1,29 @@
-// Comparison DATA adapter only. Does not override the supplied POS tagger.
-// Every Burmese surface normalization goes through the shared guarded WASM.
+// Comparison DATA adapter only. Does not call the engine segmentation
+// pipeline (no BindEngine here): it packages master/rules evidence for the MT
+// comparison side.
+//
+// New-engine-shape status:
+//   * mapperNormalize/toBurmeseStr used to be deep-imported from the engine
+//     map loader. The engine now exposes only its single boundary
+//     (Engine/index.js -> BindEngine); normalizer access for this adapter must
+//     be re-added as an explicit Engine/index.js export when the WASM box that
+//     hosts the guarded normalizer is wired into this plugin again.
+//   * POS_MAP came from MonoSyllabism/graph/disassembler.js, which was removed
+//     with the graph build step — the engine loads the prebuilt .cache-tree and
+//     has no POS-code lookup table anymore. The comparison pos_codes view is
+//     therefore UNPORTED, not silently nulled: the run refuses below until a
+//     replacement table is supplied by the owner.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { getBox, assertMapData } from '../scraper/wasm/box/host.mjs';
-import { mapperNormalize, toBurmeseStr } from './MonoSyllabism/map/loader.js';
-import { POS_MAP } from './MonoSyllabism/graph/disassembler.js';
+
+// Removed with the graph/build.js era. See header: populate from the owner's
+// new POS-code source to re-enable the comparison export.
+const POS_MAP = null;
+const ENGINE_NORMALIZER = null; // was { mapperNormalize, toBurmeseStr }
+const { mapperNormalize, toBurmeseStr } = ENGINE_NORMALIZER ?? {};
 
 if (globalThis[Symbol.for('proofreading.scraper.wasm-only')] !== true) {
   throw new Error('Comparison metadata requires the shared WASM-only runtime guard');
@@ -14,6 +31,14 @@ if (globalThis[Symbol.for('proofreading.scraper.wasm-only')] !== true) {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const [destination, extraFormsFile] = process.argv.slice(2);
 if (!destination) throw new Error('usage: export-comparison-data.mjs OUTPUT_JSON [EXTRA_FORMS_JSON]');
+// Loud, documented block — never emit pos_codes/normalizations as nulls.
+if (POS_MAP === null || ENGINE_NORMALIZER === null) {
+  throw new Error(
+    'export-comparison-data: comparison POS view is unported after the graph/build.js ' +
+      'removal (no disassembler POS_MAP, no guarded normalizer binding). Re-supply both via ' +
+      'the Engine/index.js surface before running this adapter.',
+  );
+}
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const read = relative => fs.readFileSync(path.join(ROOT, relative));
 const masterPath = 'Engine/knowledge/isTreasure/master.json';

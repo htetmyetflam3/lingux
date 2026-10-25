@@ -11,8 +11,8 @@
 */
 
 import fs from "fs";
-import { writerStart, writerEnd, writerWrote, getDateTimeHash, readerStart, readerEnd, readerFail } from "../../Bridge/logen.js";
-import { OutputFile, TreeFile, joinPath } from "../../Bridge/path.js";
+import { writerStart, writerEnd, writerWrote, getDateTimeHash, readerStart, readerEnd, readerFail } from "../../bridge/logen.js";
+import { OutputFile, TreeFile, joinPath } from "../../bridge/path.js";
 import { toSyllableLine } from "./formatter.js";
 import { toLineStrings } from "../generators/SfomatterForP.js";
 

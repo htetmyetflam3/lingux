@@ -1,14 +1,18 @@
-this file here will import the Bind engine and any other signature from individual service by going deep down and reexport it for consumer. 
-
-  example 
-
-function import {BindEngine} from  "../Engine/index.js";
-
-export as BindEngine;
-
-do the same for any other service import from manager for parser 
-
-
-
-
- //creat new path.py  for python for services like  crwler as proofreading also used Hcrawler import and export thatHcrawler for proofreading 
+// Top-level service facade — the ONLY place outside Engine/ that knows where
+// the engine lives. Every service (Scraper, Proofreading, Parser helpers)
+// imports its engine calls from here; this file imports the shared engine
+// entry and re-exports, so an engine reorg changes this one file only.
+//
+// The filename is kept as path.js for import stability: it was the old
+// engine-shim path every service already referenced. It no longer defines
+// filesystem layout — the engine owns its own paths behind Engine/index.js.
+//
+// Python-side services (crawler, mt) keep their own thin integration layer;
+// the JS facade below is the single door for Node callers.
+export {
+  BindEngine,
+  readFileContent,
+  getDateTimeHash,
+  hashKind,
+  configureWorkspace,
+} from '../Engine/index.js';

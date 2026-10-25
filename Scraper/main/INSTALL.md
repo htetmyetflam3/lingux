@@ -63,7 +63,7 @@ npm run rebuild
 One command, three steps (all inside this repo, nothing downloaded but the
 two build deps): installs mapbuilder's deps (`--no-package-lock`, the repo
 convention), restores the readable knowledge JSON from the shipped
-encrypted container (`Engine/Bridge/restore-master.js` — the shipped
+encrypted container (`Engine/architecture/MonoSyllabism/map/restore-master.mjs` — the shipped
 `map/secure.js` reader carries its own key, no secrets file needed), then
 runs the Engine's own builder (`mapbuilder/obfuscator.js`): bundle →
 obfuscate → compile to V8 bytecode with THIS machine's Node → encrypt →

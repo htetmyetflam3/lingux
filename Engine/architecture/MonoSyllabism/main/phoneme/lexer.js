@@ -19,7 +19,7 @@ import {
 	segInvalidChar,
 	// eslint-disable-next-line no-unused-vars -- intentional unused variable in test/experimental code
 	segDelimiter,
-} from "../../../Bridge/logen.js";
+} from "../../../bridge/logen.js";
 
 function isBaseAsat(tok) {
 	return isLowercaseAZ(tok);

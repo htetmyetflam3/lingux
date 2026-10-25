@@ -20,7 +20,7 @@ import express from 'express';
 import { config, keyShape, timingSafeEq } from './config.mjs';
 import { JobStore, SlotLimiter, JOB_STATES } from './job-store.mjs';
 import { pullSource, pushResult, SiteClientError } from './site-client.mjs';
-import { runEngineJob } from './engine-runner.mjs';
+import { runEngineJob } from './runner/engine-runner.mjs';
 
 const DISPATCH_FIELDS = ['jobToken', 'formId', 'submitId', 'userId', 'sessionId', 'filename', 'extension', 'method', 'task', 'job'];
 // The 7 fields the Site queue re-validates as non-empty strings on pull/push.
@@ -28,6 +28,45 @@ const META_FIELDS = ['jobToken', 'formId', 'submitId', 'userId', 'sessionId', 'f
 
 const store = new JobStore({ max: config.jobStoreMax, ttlMs: config.jobTimeoutMs });
 const slots = new SlotLimiter(config.maxConcurrent);
+
+// ── validating layer (ported from the staging api-server.js gate) ──
+// Three checks, fail closed: (1) a usable inbound key exists and the
+// presented x-api-key matches it timing-safely; (2) the caller's socket IP
+// is on config.allowedIps; (3) when the caller sends Origin/Referer its
+// host must be on config.allowedOrigins — server-to-server fetches send
+// neither, so key + IP alone gate them. /health stays open.
+function originHost(req) {
+  const raw = req.headers.origin || req.headers.referer || '';
+  if (!raw) return null;
+  try {
+    return new URL(raw).host;
+  } catch {
+    return String(raw).replace(/^https?:\/\//, '').split('/')[0];
+  }
+}
+
+function gate(req) {
+  if (keyShape(config.siteToEngineKey) !== 'ok') {
+    return { ok: false, reason: 'engine has no usable SITE_TO_ENGINE_KEY configured (fail closed)' };
+  }
+  if (!timingSafeEq(req.headers['x-api-key'] ?? '', config.siteToEngineKey)) {
+    return { ok: false, reason: 'Refused' };
+  }
+  const ip = req.socket?.remoteAddress || '';
+  const ipOk = [...config.allowedIps].some((a) => ip === a || ip === `::ffff:${a}`);
+  if (!ipOk) return { ok: false, reason: 'caller ip not allowed' };
+  const host = originHost(req);
+  if (host !== null && !config.allowedOrigins.has(host)) {
+    return { ok: false, reason: 'origin/domain not allowed' };
+  }
+  return { ok: true };
+}
+
+function gated(req, res, next) {
+  const g = gate(req);
+  if (!g.ok) return res.status(403).json({ error: g.reason });
+  next();
+}
 
 function validateJobBody(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
@@ -40,6 +79,16 @@ function validateJobBody(body) {
   );
   if (badMeta.length) return { error: `missing or invalid job metadata: ${badMeta.join(', ')}` };
   if (store.get(metadata.jobToken)) return { error: 'jobToken already accepted', status: 409 };
+  // One active engine round per file: refuse when a preceding request for the
+  // same formId is still PENDING/RUNNING. Terminal rounds allow a fresh round
+  // (the Site mints a new jobToken for it).
+  const predecessor = store.activeByFormId(metadata.formId);
+  if (predecessor) {
+    return {
+      error: `a preceding job for formId ${metadata.formId} is still ${predecessor.state}`,
+      status: 409,
+    };
+  }
   return { metadata };
 }
 
@@ -76,13 +125,7 @@ export function createApp() {
   );
 
   // Fail closed: a gate that cannot validate must never open.
-  app.post('/job', (req, res) => {
-    if (keyShape(config.siteToEngineKey) !== 'ok') {
-      return res.status(403).json({ error: 'engine has no usable SITE_TO_ENGINE_KEY configured (fail closed)' });
-    }
-    if (!timingSafeEq(req.headers['x-api-key'] ?? '', config.siteToEngineKey)) {
-      return res.status(403).json({ error: 'Refused' });
-    }
+  app.post('/job', gated, (req, res) => {
     const { metadata, error, status } = validateJobBody(req.body);
     if (error) return res.status(status ?? 400).json({ error });
 
@@ -96,13 +139,8 @@ export function createApp() {
     return res.status(202).json({ accepted: true, jobToken: record.jobToken, state: record.state });
   });
 
-  // Diagnostics for the operator (same key as /job); never exposed to the Site.
-  app.get('/jobs', (req, res) => {
-    if (!timingSafeEq(req.headers['x-api-key'] ?? '', config.siteToEngineKey)) {
-      return res.status(403).json({ error: 'Refused' });
-    }
-    return res.status(200).json({ jobs: store.snapshot() });
-  });
+  // Diagnostics for the operator (same gate as /job); never exposed to the Site.
+  app.get('/jobs', gated, (_req, res) => res.status(200).json({ jobs: store.snapshot() }));
 
   app.use((err, _req, res, _next) => res.status(err.status ?? 400).json({ error: err.message }));
   app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
@@ -118,6 +156,9 @@ export function startServer(port = config.port) {
       keyShape(config.siteToEngineKey) === 'ok'
         ? '[standalone-web] inbound gate ON (SITE_TO_ENGINE_KEY 32 hex)'
         : '[standalone-web] inbound gate FAIL-CLOSED — set SITE_TO_ENGINE_KEY',
+    );
+    console.log(
+      `[standalone-web] gate allowlists — ips: ${[...config.allowedIps].join(' ') || '(none)'} | origins: ${[...config.allowedOrigins].join(' ') || '(none)'}`,
     );
     console.log(
       config.siteQueueUrl

@@ -5,7 +5,7 @@ import {
   // eslint-disable-next-line no-unused-vars -- intentional unused variable in test/experimental code
   walkerStart, walkerEnd,
   walkStepHit, walkStepEmpty, walkQuit, walkFail, walkOutputSyllables,
-} from '../../../Bridge/logen.js';
+} from '../../../bridge/logen.js';
 
 export function walk(block, startPos) {
   const tree = getTree();

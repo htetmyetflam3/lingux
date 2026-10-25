@@ -2,7 +2,7 @@
 import { normalize, mapperNormalize, myNormalize } from './normalize.js';
 import { mapperStr, toBurmeseStr, isTail, isBase, isNum, isStick, isStandalone } from './sourceMapper.js';
 import { isLowerOrUpperAZ, isLowercaseAZ, isUppercaseAZ } from './_function.js';
-import * as tables from './sourceMap.js';
+import * as tables from './base/sourceMap.js';
 
 const functions = { normalize, mapperNormalize, myNormalize, mapperStr, toBurmeseStr,
   isTail, isBase, isNum, isStick, isStandalone, isLowerOrUpperAZ, isLowercaseAZ, isUppercaseAZ };
