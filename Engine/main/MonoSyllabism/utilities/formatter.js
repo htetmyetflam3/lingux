@@ -82,6 +82,34 @@ export function toBurmeseLineWithPos(lineResult, posField = "finalPos") {
 		.join(DELIM);
 }
 
+/* ── id-view line formatters (debug observability, ported verbatim from
+   Staging_architecture/lib/entry/formatter.js). Pure renders: the id lookup
+   is injected as idOf so this file stays free of map/table imports. ── */
+
+/** id + pos tag, merged word id: "A188A039{n}"; boundary prints bare. */
+export function toIdsLineWithPos(lineResult, posField = "rawPos") {
+	return (lineResult.tokens ?? [])
+		.map((t) => (tokenIsBoundary(t) ? tokenId(t) : `${tokenId(t)}{${t[posField]}}`))
+		.join(DELIM);
+}
+
+/** id from the id mapper only, per syllable, no pos: "A188  A039" */
+export function toIdMapperLine(lineResult, idOf = (s) => s) {
+	const out = [];
+	for (const t of lineResult.tokens ?? []) {
+		for (const s of t.syllables ?? []) {
+			const core = s.endsWith("<eos>") ? s.slice(0, -5) : s;
+			out.push(idOf(core));
+		}
+	}
+	return out.join(DELIM);
+}
+
+/** Tree-merged id only, per word, no pos: "A188A039" */
+export function toIdMergedLine(lineResult) {
+	return (lineResult.tokens ?? []).map((t) => tokenId(t)).join(DELIM);
+}
+
 /* ── positional map (the syllable jobs API in Ginit) ── */
 
 /** Base consonant test — the same rule the encoder uses. */
