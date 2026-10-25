@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { loadDetector, processPageRecord, streamPdfPages } from "../../../Parser/main/parser/pipeline.mjs";
+import { loadDetector, processPageRecord, streamPdfPages } from "../../../Parser/extend/pipeline.mjs";
 
 /* The cmap fork (processPageRecord): a page decoded from the font's own
    cmap/ToUnicode that the detector calls Zawgyi is either a Unicode page in

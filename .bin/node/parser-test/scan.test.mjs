@@ -16,7 +16,7 @@ test("JavaScript scanner mirrors the structural scan rules", () => {
 test("sealed master map is loaded only by an explicit scanner dictionary request", () => {
   // Derived from this file, not the cwd: the old cwd-relative
   // "Parsed/parser/model/..." only resolved from the site repo root.
-  const data = loadMap(fileURLToPath(new URL("../../../master.json.enc", import.meta.url)));
+  const data = loadMap(fileURLToPath(new URL("../../../.data/master.json.enc", import.meta.url)));
   const words = dictionaryWords(data);
   assert.deepEqual(Object.keys(data), ["dictionary", "top", "resolution", "syllables", "mapData"]);
   assert.ok(words.size > 1000);

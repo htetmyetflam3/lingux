@@ -52,10 +52,10 @@ export function configureWorkspace({ treeDir, logDir, outputDir, dataDir } = {})
 const MAP_DIR = "MonoSyllabism/map";
 const MAP_BINARY_FILE = MAP_DIR + "/payload.jsc";
 const MAP_LOADER_FILE = MAP_DIR + "/loader.js";
-// secure.js and master.json(.enc) now live at the repo root, two levels above
-// ENGINE_ROOT (Engine/architecture): one loader, one .env, one sealed source.
-const MAP_SECURE_FILE = "../../secure.js";
-const MAP_MASTER_FILE = "../../master.json";
+// secure.js and master.json(.enc) now live in .data/ at the repo root, two
+// levels above ENGINE_ROOT (Engine/architecture): one loader, one .env, one sealed source.
+const MAP_SECURE_FILE = "../../.data/secure.js";
+const MAP_MASTER_FILE = "../../.data/master.json";
 const MAP_SOURCE_DIR = "MonoSyllabism/mapbuilder/base";
 const JSON_SOURCE_FILE = "knowledge/isTreasure/master.json";
 // The historical JSC slot now names the map binary (Private/... pre-rename

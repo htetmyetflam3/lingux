@@ -68,7 +68,7 @@ test("object streams are detected by marker and expanded through qpdf", { skip }
 });
 
 test("the sync extraction path names object streams instead of failing silently", async () => {
-  const { streamPdfPages } = await import("../../../Parser/main/parser/pipeline.mjs");
+  const { streamPdfPages } = await import("../../../Parser/extend/pipeline.mjs");
   assert.throws(
     () => streamPdfPages(OBJSTM_PDF, null, () => {}),
     /object streams \(\/ObjStm\)/,
