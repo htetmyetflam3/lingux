@@ -2,16 +2,24 @@
 /**
  * fix-import.mjs — Engine-local copy of .bin/node/fix-import.js.
  * Category: fix
- * Auto-detect and fix broken import paths across ESM .js/.mjs files.
+ * Auto-detect and fix broken import paths across ESM .js/.mjs files. Interactive confirmation.
  * self-scan-exclusion: 7f3a91c0
  *
- * BOUNDARY GUARD (Engine copy): the scan root is hard-pinned to the Engine
- * directory that contains this tools/ folder. It never climbs above Engine to
- * find a package.json/.git, and candidate modules outside Engine are rejected
- * — every import this tool writes stays resolvable inside Engine alone.
- *   node tools/fix-import.mjs            # scan all of Engine, ask per fix
- *   node tools/fix-import.mjs host       # scan a subdir only
- *   node tools/fix-import.mjs . --yes    # non-interactive, apply every fix
+ * Usage:
+ *   node tools/fix-import.mjs [start-dir] [climb-ceiling]
+ *
+ *   start-dir      the directory to scan (default ".", resolved from cwd).
+ *   climb-ceiling  OPTIONAL. Resolved RELATIVE TO start-dir — never from cwd
+ *                  and never from where this script lives. When given, the
+ *                  upward ancestor walks (project-root discovery and the
+ *                  candidate climb) must not index the ceiling's parent:
+ *                  every file this tool reads or rewrites a path to stays at
+ *                  or below the ceiling. Omit it and the original unrestricted
+ *                  upward climb is fully intact.
+ *
+ *   node tools/fix-import.mjs              # scan ".", climb freely upward
+ *   node tools/fix-import.mjs host         # scan ./host, climb freely upward
+ *   node tools/fix-import.mjs ./ ../../    # scan ".", never claw above ./../..
  */
 
 import fs from 'fs';
@@ -24,9 +32,8 @@ const __filename = path.resolve(fileURLToPath(import.meta.url));
 // so its regex/comment text can never pollute the export map.
 const SELF_MARKER = 'self-scan-exclusion: 7f3a91c0';
 
-const AUTO_YES = process.argv.includes('--yes');
-const rl = AUTO_YES ? null : readline.createInterface({ input: process.stdin, output: process.stdout });
-const ask = q => AUTO_YES ? Promise.resolve('y') : new Promise(res => rl.question(q, a => res(a.trim())));
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+const ask = q => new Promise(res => rl.question(q, a => res(a.trim())));
 
 let filesScanned = 0;
 let filesModified = 0;
@@ -35,19 +42,44 @@ let importsVerified = 0;
 let importsBroken = 0;
 
 // ---------------------------------------------------------------------------
-// Engine boundary: this file lives at <Engine>/tools/fix-import.mjs, so the
-// Engine root is its parent directory. Hard-pinned — no climb to repo root,
-// no cwd dependence. An optional positional arg narrows the scan to a subdir.
+// Project root: taken from the CLI arg (default "."), then climbed up to the
+// nearest ancestor containing package.json / .git / node_modules.
+//
+// Optional second positional arg is the climb ceiling. It is resolved against
+// the resolved start dir itself, so "../../" means two parents above the
+// scanned dir regardless of cwd or this script's own location.
 // ---------------------------------------------------------------------------
-const ENGINE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const argDir = process.argv.find((a, i) => i >= 2 && !a.startsWith('--'));
-const START_DIR = argDir ? path.resolve(ENGINE_ROOT, argDir) : ENGINE_ROOT;
-const PROJECT_ROOT = ENGINE_ROOT;
+const positionals = process.argv.slice(2).filter(a => !a.startsWith('--'));
+const START_DIR = path.resolve(positionals[0] || '.');
+const CLIMB_CEILING = positionals[1] ? path.resolve(START_DIR, positionals[1]) : null;
+const ROOT_MARKERS = ['package.json', '.git', 'node_modules'];
+const MAX_ROOT_CLIMB = 6;
 
-function insideEngine(filePath) {
-  const rel = path.relative(ENGINE_ROOT, filePath);
+function isWithin(filePath, dir) {
+  const rel = path.relative(dir, filePath);
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
+
+if (CLIMB_CEILING && !isWithin(START_DIR, CLIMB_CEILING)) {
+  console.error(`Climb ceiling ${CLIMB_CEILING} is not an ancestor of start dir ${START_DIR}.`);
+  console.error('The ceiling must be the start dir or one of its ancestors; refusing to run.');
+  process.exit(2);
+}
+
+function findProjectRoot(startDir) {
+  let dir = startDir;
+  for (let i = 0; i < MAX_ROOT_CLIMB; i++) {
+    if (ROOT_MARKERS.some(m => fs.existsSync(path.join(dir, m)))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    // Guard: never discover a project root above the supplied ceiling.
+    if (CLIMB_CEILING && !isWithin(parent, CLIMB_CEILING)) break;
+    dir = parent;
+  }
+  return startDir;
+}
+
+const PROJECT_ROOT = findProjectRoot(START_DIR);
 
 // ---------------------------------------------------------------------------
 // Indexes
@@ -143,6 +175,7 @@ const realCount = allFiles.length - selfFiles.size;
 
 console.log(`Start dir:    ${START_DIR}`);
 console.log(`Project root: ${PROJECT_ROOT}`);
+if (CLIMB_CEILING) console.log(`Climb ceiling: ${CLIMB_CEILING} (upward walk stops here)`);
 console.log(`Indexed ${realCount} .js/.mjs files (skipped ${selfFiles.size} copy/copies of this script).`);
 console.log(`Indexed exports from ${realCount} files.\n`);
 
@@ -278,12 +311,32 @@ function findCandidates(imp) {
   return cands;
 }
 
-// Engine boundary: only modules already indexed INSIDE Engine are candidates.
-// The upstream copy climbed ancestor directories here; that walk is removed on
-// purpose — an import the Engine tree cannot satisfy stays broken and loud
-// instead of being silently rewired to a file above Engine.
+// If nothing is found, climb UP through ancestor directories and index them,
+// so files living above the start dir (e.g. ../Bridge, ../Engine) are found.
+// With a climb ceiling the walk indexes the ceiling itself at most and never
+// its parent; without one the original unrestricted climb is unchanged.
+const MAX_SEARCH_CLIMB = 6;
+let climbed = false;
+
 function findCandidatesWithClimb(imp) {
-  return findCandidates(imp).filter(insideEngine);
+  let cands = findCandidates(imp);
+  if (cands.length > 0 || climbed) return cands;
+  let dir = path.dirname(PROJECT_ROOT);
+  for (let level = 0; level < MAX_SEARCH_CLIMB && dir !== path.dirname(dir); level++) {
+    // Guard: an ancestor above the ceiling can never be indexed.
+    if (CLIMB_CEILING && !isWithin(dir, CLIMB_CEILING)) break;
+    for (const f of scanTree(dir, new Set([PROJECT_ROOT]))) ensureIndexed(f);
+    cands = findCandidates(imp);
+    if (cands.length > 0) break;
+    // Guard: the ceiling itself was just indexed; do not claw above it.
+    if (CLIMB_CEILING && path.resolve(dir) === path.resolve(CLIMB_CEILING)) break;
+    dir = path.dirname(dir);
+  }
+  climbed = true;
+  // Guard: even files indexed incidentally (e.g. an import the broken path
+  // already resolved to) can never become a rewrite target above the ceiling.
+  if (CLIMB_CEILING) cands = cands.filter(c => isWithin(c, CLIMB_CEILING));
+  return cands;
 }
 
 function scoreDefaultMatch(filePath, defaultBinding) {
@@ -348,7 +401,7 @@ async function fixFile(filePath) {
     }
 
     if (candidates.length === 0) {
-      console.log(`    [SKIP] No matching file inside Engine${imp.names.length ? ` for exports: {${imp.names.join(', ')}}` : ''}`);
+      console.log(`    [SKIP] No matching file found${climbed ? ' (searched upward too)' : ''}${imp.names.length ? ` for exports: {${imp.names.join(', ')}}` : ''}`);
       continue;
     }
 
@@ -397,5 +450,5 @@ async function fixFile(filePath) {
   console.log(`Imports broken:   ${importsBroken} (missing or wrong exports)`);
   console.log(`Imports fixed:    ${importsFixed}`);
   console.log(`Files modified:   ${filesModified}`);
-  if (rl) rl.close();
+  rl.close();
 })();
