@@ -1,5 +1,5 @@
 import { TreeFile, DataFile, MasterFile, resolvePath } from '../../../bridge/path.js';
-import { readSecureText, readSecureJson } from '../../../MonoSyllabism/map/secure.js';
+import { readSecureText, readSecureJson } from '../../../../../secure.js';
 import { verifyCacheTree } from './cache-integrity.js';
 import fs from 'fs';
 import path from 'path';

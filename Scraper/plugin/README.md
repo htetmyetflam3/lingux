@@ -2,7 +2,7 @@
 
 `parse-bridge.mjs` is the integration plugin that connects the scraper to the
 Parser engine. It replaces the Python classification ladder in
-`main/crawler/bin/pdf_classify.py`, which depended on a bundled `praser/`
+`main/modules/result/pdf_classify.py`, which depended on a bundled `praser/`
 Python port that no longer exists. The decision itself is not reimplemented
 here — it lives in the Parser (`Parser/main/parser/caller-policy.mjs`), the
 single owner of scraper policy. This file is only the process/IO adapter.
@@ -29,7 +29,7 @@ node parse-bridge.mjs --out RESULT.json [--ocr] PDF [PDF ...]
 - `--out RESULT.json` (required) — the JSON verdict array is written here.
   Results never go to stdout: the Parser logs through `console.log`, including
   from worker threads, so stdout/stderr stay diagnostic (the same contract as
-  `crawler/bin/segment_bridge.mjs`).
+  `support/segment_bridge.mjs`).
 - `--ocr` — route a scanned document through the Manager's OCR lane instead of
   reporting `scanned`. Off by default; a missing tesseract model degrades back
   to a `scanned` verdict rather than failing.
@@ -67,8 +67,8 @@ A single document failing never aborts the batch — it becomes an
 ## Calling from Python
 
 Mirror the existing `_find_node22()` + `subprocess.run` transport in
-`main/crawler/bin/text_collect.py` (the one that already runs
-`segment_bridge.mjs`):
+`main/modules/result/text_collect.py` (the one that already runs
+`segment_bridge.mjs` in `main/support/`):
 
 ```python
 proc = subprocess.run(

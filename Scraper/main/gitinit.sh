@@ -218,9 +218,9 @@ if git ls-files | grep -qE '^logs/|\.log(\.txt)?$|log\.txt$'; then
 fi
 
 TARGET_PATHS=(
-   "crawler/bin/"
+   "modules/"
+   "support/"
    "scan/"
-   "crawler/scribdl/"
    ".gitignore"
    "gitinit.sh"
   "changeslog.md"

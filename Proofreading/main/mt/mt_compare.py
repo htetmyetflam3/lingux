@@ -17,6 +17,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 import tempfile
 import os
@@ -35,11 +36,16 @@ REFERENCE = ROOT/'content/kmt-pos/ယဲ့နင်.raw_pos.txt'
 WORK = ROOT/'content/mtranslate/comparison'
 PROFILE = ROOT/'content/analysis/reference-data-audit.json'
 
-# Current in-repo data sources (data, not engine code): the readable master
-# shipped with the tree kit and the engine's rule notes. Normalization is NOT
-# reimplemented here — bindings keep their literal surface, so Evidence walks
-# the exact strings the tagger emitted.
-MASTER = REPO/'Engine/tree-kit/tree-kit/master.json'
+# Current in-repo data sources (data, not engine code): the single sealed
+# master lives at the repo root and is read through the root secure.js node
+# door — secure.js owns the .env key and the sealed cache, so this audit gets
+# the full master (including mapData) without ever holding the key or writing
+# a readable JSON copy. The engine's rule notes and the runtime box are
+# fingerprinted directly. Normalization is NOT reimplemented here — bindings
+# keep their literal surface, so Evidence walks the exact strings the tagger
+# emitted.
+MASTER_ENC = REPO/'master.json.enc'
+SECURE_JS = REPO/'secure.js'
 RULES = REPO/'Engine/architecture/knowledge/isTreasure/mainrules.js'
 BOX_WASM = REPO/'Engine/architecture/MonoSyllabism/map/box.wasm'
 
@@ -151,8 +157,31 @@ def _classify_form(form):
     return 'literal'
 
 
+def load_master() -> dict:
+    """Read the sealed repo-root master through secure.js (node door).
+
+    secure.js owns the .env key and the sealed cache; Python never holds the
+    key and never writes a plaintext copy. Returns the full master including
+    mapData, so the annotation hash below covers the same data as the engine.
+    """
+    if not SECURE_JS.is_file() or not MASTER_ENC.is_file():
+        raise ComparisonError(f'sealed master door is missing: {SECURE_JS}')
+    script = ("import {readMasterJson} from %s;"
+              "process.stdout.write(JSON.stringify(readMasterJson()));"
+              % json.dumps(str(SECURE_JS)))
+    proc = subprocess.run(['node', '--input-type=module', '-e', script],
+                          capture_output=True, text=True)
+    if proc.returncode:
+        raise ComparisonError(f'secure.js master load failed: {proc.stderr.strip()}')
+    master = json.loads(proc.stdout)
+    for section in ('top', 'resolution', 'dictionary'):
+        if section not in master:
+            raise ComparisonError(f'sealed master is missing {section}')
+    return master
+
+
 def knowledge(work=WORK):
-    master = json.loads(MASTER.read_text(encoding='utf-8'))
+    master = load_master()
     if not master.get('top') or not master.get('resolution'):
         raise ComparisonError('Master top/resolution sections are required for comparison')
     rules = _rules_document()
@@ -241,7 +270,7 @@ def knowledge(work=WORK):
     annotation_data = {'dictionary': master['dictionary'], 'mapData': master['mapData']}
     obj = {
         'schema_version': 1,
-        'sources': {'master': str(MASTER.relative_to(REPO)), 'master_sha256': file_hash(MASTER),
+        'sources': {'master': str(MASTER_ENC.relative_to(REPO)), 'master_sha256': file_hash(MASTER_ENC),
                     'rules': str(RULES.relative_to(REPO)), 'rules_sha256': file_hash(RULES),
                     'box_wasm_sha256': file_hash(BOX_WASM)},
         'comparison_data_sha256': identity(comparison_data),
@@ -480,7 +509,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     temporary = None
     try:
-        protected = {MASTER.resolve(), RULES.resolve(), args.reference.resolve()}
+        protected = {MASTER_ENC.resolve(), RULES.resolve(), args.reference.resolve()}
         protected.update(p.resolve() for p in (ROOT/'input').glob('*') if p.is_file())
         if args.input: protected.add(args.input.resolve())
         proposed = (args.output or args.reference_profile) if args.profile \

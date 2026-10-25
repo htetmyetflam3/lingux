@@ -10,11 +10,11 @@ Parser_host without changing caller shapes.
 
 | File | Replaces (deleted) | Entry protocol |
 |---|---|---|
-| `pdf-classify.draft.py` | `Scraper/crawler/bin/pdf_classify.py` + `Scraper/praser/`, `Scraper/map/`, `Scraper/model/` | in-process: `classify_pdf(bytes) -> ClassifyResult`, `extract_convertable_text(bytes) -> (text, decode, pages)`, `get_detector()` |
+| `pdf-classify.draft.py` | `Scraper/main/modules/result/pdf_classify.py` + `Scraper/praser/`, `Scraper/map/`, `Scraper/model/` | in-process: `classify_pdf(bytes) -> ClassifyResult`, `extract_convertable_text(bytes) -> (text, decode, pages)`, `get_detector()` |
 | `ocr-worker.draft.mjs` | `Scraper/deploy/continuous-ocr/worker.mjs` + `Scraper/ocr_runtime/Praser/parser/` | persistent stdio worker: stdin one JSON `{input, output}`/`{close}` per line, stdout `OCR_RESULT {json}` lines, ready banner at boot |
 
-Scraper callers left dangling: `crawler/bin/save_local.py`,
-`crawler/bin/text_collect.py`, `deploy/continuous-ocr/run.py`,
+Scraper callers left dangling: `modules/download/save_local.py`,
+`modules/result/text_collect.py`, `deploy/continuous-ocr/run.py`,
 `deploy/continuous-parse/run.py`, `ocr.py`, `parse.py`.
 
 ## Site routine (node ESM)

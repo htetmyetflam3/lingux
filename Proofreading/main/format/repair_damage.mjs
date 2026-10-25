@@ -29,10 +29,14 @@
 import { readFileSync, writeFileSync, existsSync, renameSync } from 'node:fs';
 import { dirname, resolve, basename, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readSecureJson } from '../../../secure.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
-const MASTER = resolve(ROOT, 'Engine/knowledge/isTreasure/master.json');
+// Single sealed master at the repo root, read through the root secure.js
+// (its .env key and sealed cache live beside it). A --master plain-JSON
+// override still works: readSecureJson reads plain files as-is.
+const MASTER = resolve(HERE, '../../../master.json.enc');
 const LEDGER = resolve(HERE, 'damage_ledger.json');
 
 const BASE = /[\u1000-\u1021\u103F]/;
@@ -44,7 +48,7 @@ const collapse = (value) => value.replace(/\s+/g, '');
 
 class Dictionary {
   constructor(path) {
-    const data = JSON.parse(readFileSync(path, 'utf8'));
+    const data = readSecureJson(path);
     this.forms = new Set();
     this.prefixes = new Set();
     this.pos = new Map();
@@ -340,7 +344,7 @@ function usage() {
       --rounds <n>      repair passes, stops early when stable (default 3)
       --no-ledger       ignore the reviewed word list
       --ledger <path>   reviewed word list (default: damage_ledger.json)
-      --master <path>   dictionary (default: Engine/knowledge/isTreasure/master.json)
+      --master <path>   dictionary (default: repo-root master.json.enc via secure.js)
       --verify <path>   compare the result with another program's output
   -h, --help            show this help`;
 }

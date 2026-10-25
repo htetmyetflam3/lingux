@@ -13,7 +13,7 @@
 // Worker per accepted job (engine-initiated, Site queue is the authority):
 //   pullSource -> native pipeline -> pushResult, see site-client.mjs.
 //
-// Run:  node plugin/standalone-web/server.mjs
+// Run:  node Engine/host/server.mjs
 // express resolves from the workspace root node_modules (root package.json
 // already declares express; Engine/main/package.json does too).
 import express from 'express';

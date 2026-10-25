@@ -32,8 +32,8 @@ Python/Node syntax checks and ZIP integrity/manifest checks passed. Temporary sc
 
 The overlay is no longer an addition laid over an untouched scraper: it now lives in this branch, and the scraper modules it reuses were changed by work that landed after the check above. `OCR-MANIFEST.json` content hashes were **recomputed** at commit `ddf9a41`; `scraper_reference` still records the original overlay base (`26779d8`) and `hashes_recomputed_at` records the recomputation. Eight hashes moved:
 
-- `crawler/bin/save_remote.py`, `crawler/bin/text_collect.py` — changed by this branch's fixes (stale path prose; a cross-process append lock).
-- `crawler/bin/segment_bridge.mjs`, `deploy/engine_ready.py` — **not edited by that work**; they differ because this branch's copies had already diverged from `main`'s before the overlay was merged.
+- `modules/download/save_remote.py`, `modules/result/text_collect.py` — changed by this branch's fixes (stale path prose; a cross-process append lock).
+- `support/segment_bridge.mjs`, `deploy/engine_ready.py` — **not edited by that work**; they differ because this branch's copies had already diverged from `main`'s before the overlay was merged.
 - `deploy/continuous-ocr/run.py`, `deploy/continuous-ocr/install.py`, `deploy/continuous-ocr/README.md`, `OCR-INSTALL.md` — changed by the fixes below.
 
 The 35 `ocr_runtime/` files were **not** edited: every one is still byte-identical to what `main` shipped, and `copied_runtime[*].source_sha256` (the upstream Linga source) is unchanged.

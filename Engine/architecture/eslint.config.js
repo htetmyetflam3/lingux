@@ -55,7 +55,6 @@ export default [
       'jsconfig.js',
       // generated build artifacts (obfuscated / compiled) — never lint them
       'MonoSyllabism/map/loader.js',
-      'MonoSyllabism/map/secure.js',
       'MonoSyllabism/mapbuilder/.build/**',
     ],
   },

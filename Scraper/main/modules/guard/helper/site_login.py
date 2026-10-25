@@ -31,7 +31,7 @@ from pathlib import Path
 import httpx
 from bs4 import BeautifulSoup, Tag
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 DOTENV_PATH = REPO_ROOT / ".env"  # repo root, next to main.py
 LOGIN_TIMEOUT = 20.0
 

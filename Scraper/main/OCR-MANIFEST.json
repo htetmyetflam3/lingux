@@ -3,19 +3,19 @@
   "scraper_reference": "26779d831937736bf3b88bc8aad0dbd060b9b111",
   "linga_base": "e666961af69a2dab50e78b57fd5f617869c022c9",
   "reused_not_included": {
-    "crawler/bin/save_remote.py": "2c0f75bd601ae19f907df0a1436e73ac42e55129886724650f4074810c17749b",
-    "crawler/bin/mailer.py": "83c9299009247ccfedb9cc713b1b718efad9f13ec3b1e86157ae49f87d3a5e6a",
-    "crawler/bin/text_collect.py": "82645ee161c41ce2a764c0c02eec6011875d3cae98a5ebdb02d1728dba266823",
-    "crawler/bin/segment_bridge.mjs": "52651ec927dc0e34064ac6ae39d7bbc4c3e1e132da7fc98a340b1065d44726c7",
-    "crawler/bin/disk_floor.py": "696a982976502c74121529b7cc6d75cc443ff8acc375a316380c367c0f21f410",
+    "modules/download/save_remote.py": "2c0f75bd601ae19f907df0a1436e73ac42e55129886724650f4074810c17749b",
+    "support/mailer.py": "83c9299009247ccfedb9cc713b1b718efad9f13ec3b1e86157ae49f87d3a5e6a",
+    "modules/result/text_collect.py": "82645ee161c41ce2a764c0c02eec6011875d3cae98a5ebdb02d1728dba266823",
+    "support/segment_bridge.mjs": "52651ec927dc0e34064ac6ae39d7bbc4c3e1e132da7fc98a340b1065d44726c7",
+    "modules/guard/disk/disk_floor.py": "696a982976502c74121529b7cc6d75cc443ff8acc375a316380c367c0f21f410",
     "deploy/engine_ready.py": "44576dda86bcee8b07b56e7b37fc8be70789e15bbaffdf17de0dfa6f731f9052"
   },
   "files": {
-    "ocr.py": "88a3fb4beda3086111071247890089e7252e0256608f84386bbcad7a5f54e679",
-    "deploy/continuous-ocr/OCR-VERIFICATION.md": "85269c4834a0266e7df7816e46818661e11f89d03da86e7018145189a5ab6a34",
-    "deploy/continuous-ocr/README.md": "6e5f342d35fe958306fe95ef4e42dbf7d2458dfea9111be38db4c9059b8da12e",
-    "deploy/continuous-ocr/install.py": "99157c2d7c6b8261b36b2adb6cca9588127fb317130c3dc476907bbb9707dcd6",
-    "deploy/continuous-ocr/run.py": "e43d264cd724e146c2628343ec6b0b51bb0ca0cb9ef80b24892d12561433a1d0",
+    "ocr.py": "a95c46f4440f3cd4467e99f6765570391c735edd51d776573923359ad79a1e70",
+    "deploy/continuous-ocr/OCR-VERIFICATION.md": "66b6fdabea8d6606bc002592ad7e57b68ea95c74aa2672c8a0543c5fe98a8b2a",
+    "deploy/continuous-ocr/README.md": "5a71c010b0487b55aed0fd85f8a71c00fbdf23ac471c1c7c12be8a23d1c10439",
+    "deploy/continuous-ocr/install.py": "97d14cb79e580766b6657049930c2c404795cf71d1aeb298e33cb24c56a192c0",
+    "deploy/continuous-ocr/run.py": "5158b3bf0e7ae361a0f5480c69341b6a3818a3ee50573371949baa54adb91ccd",
     "deploy/continuous-ocr/worker.mjs": "4593924fba3b41b0ec9cbeb3aee34ef827b9e0cc415d1559b44ed3409ab977c9",
     "ocr_runtime/Praser/parser/package.json": "2c0f4337c7ddbdc277b2891def4e323aa6689fa840b6bb924723eb5fea5c026a",
     "ocr_runtime/Praser/parser/package-lock.json": "96384029a0b2d3c2742078f680d97692b9ad6af553dd0ea33cd9afeeee1ca6a8",
@@ -31,13 +31,11 @@
     "ocr_runtime/Praser/parser/shape/match.mjs": "a1d8a5dc5476860d6acd3cd167d374d1652c58ccd2182fe7e569a5b019d88f76",
     "ocr_runtime/Praser/parser/shape/contour.mjs": "c393a92b55d9156a05bbda1fac0bb5a502f9f4b36631a662b3ad97ee552ef76e",
     "ocr_runtime/Praser/parser/codepage/vote.mjs": "aaa576ea5a44dff335932483cd9c91c603a2f68897e45f60304705005612f5fe",
-    "ocr_runtime/Praser/parser/text/scan.mjs": "38f01687e81b682b934467da8d3eab75696b79ed777d5ed17a672c11a12eb5da",
+    "ocr_runtime/Praser/parser/text/scan.mjs": "6433d2cf30d78f50d25df0ef8a2b61d988ec637e6bb02c7bc34afabaf995b8d2",
     "ocr_runtime/Praser/parser/text/repair.mjs": "a27831fece5d183904b318bb4d169003f2b575bc10219d2c685073646133e154",
     "ocr_runtime/Praser/parser/text/normalize.mjs": "00fa389acd90ebab774e3bb623edf3885933575af7673e0a1f471d3c0bb6dad8",
     "ocr_runtime/Praser/parser/text/cleanup.mjs": "b340e7045870d10b7f2cf1bbe3dba637aa58cb703621c8920ccd40b54b9e21ee",
     "ocr_runtime/Praser/parser/text/mm-score.mjs": "bbd98a6fca29b414720d14b2809aee9ff6f940494d02ae4476a0b9ec853544e3",
-    "ocr_runtime/Praser/parser/model/secure.js": "02c13e380a0733b386040513e2b7884e17c52f65ed3181190d6c1c04ee821d7d",
-    "ocr_runtime/Praser/parser/model/master.json.enc": "54fb2fcc19ade5f2182bcc59b6b886776c5d49c11737d2ab93925753bd9bc529",
     "ocr_runtime/Praser/parser/model/mya.traineddata": "cf749828f7db42e0fbeb3b5e9077363c3b92c58e5e0058d70c446e2d12c19dd8",
     "ocr_runtime/Praser/parser/map/burmese-inventory.json": "ed55ae6f069553f2e4993e0f336e94ea946f84b4443f43cb8b240ee936ca95e6",
     "ocr_runtime/Praser/parser/map/cipher-map.json": "bac90193071c69d1361ebe90a98cacd112100436969d37f0aaaee7b2dd4088c9",
@@ -52,8 +50,10 @@
     "ocr_runtime/Praser/parser/map/vector/shape-alias.json": "78827f69da2844efd233519cb801ebdeb3ee2b8ffcb7d77b33bd36e05365c4de",
     "ocr_runtime/Praser/parser/map/vector/shape-overrides.json": "8333e6e881236d07bc25bf9fce818aaf87713098aa8e31026533036935e02e8b",
     "ocr_runtime/Praser/parser/map/vector/shape-thresholds.json": "8a160405676321a87299719975e38e188d752167f6242b5e217996dbb390df91",
-    "OCR-INSTALL.md": "3dc694727e2c146f048755679239cd840b4544c79f6c935e90746518d1902a33",
-    "OCR-VERIFICATION.md": "85269c4834a0266e7df7816e46818661e11f89d03da86e7018145189a5ab6a34"
+    "OCR-INSTALL.md": "9a9186fa84b5f38dd7a2867ce482e3fdb3ff65b905015449e97beab34347eb11",
+    "OCR-VERIFICATION.md": "66b6fdabea8d6606bc002592ad7e57b68ea95c74aa2672c8a0543c5fe98a8b2a",
+    "secure.js": "bea2ee49f277dfd053f1cdf75ac4da326c89707d2d9f063cd80c3fd036dedd56",
+    "master.json.enc": "85a9130aa806f306e4ac0d6530f5ce0e1768e22aeb58f21f29232ec387839c1e"
   },
   "copied_runtime": {
     "ocr_runtime/Praser/parser/package.json": {
@@ -128,7 +128,7 @@
     },
     "ocr_runtime/Praser/parser/text/scan.mjs": {
       "source": "Praser/parser/text/scan.mjs",
-      "source_sha256": "38f01687e81b682b934467da8d3eab75696b79ed777d5ed17a672c11a12eb5da",
+      "source_sha256": "6433d2cf30d78f50d25df0ef8a2b61d988ec637e6bb02c7bc34afabaf995b8d2",
       "modified_for_whole_index_cache": false
     },
     "ocr_runtime/Praser/parser/text/repair.mjs": {
@@ -149,16 +149,6 @@
     "ocr_runtime/Praser/parser/text/mm-score.mjs": {
       "source": "Praser/parser/text/mm-score.mjs",
       "source_sha256": "bbd98a6fca29b414720d14b2809aee9ff6f940494d02ae4476a0b9ec853544e3",
-      "modified_for_whole_index_cache": false
-    },
-    "ocr_runtime/Praser/parser/model/secure.js": {
-      "source": "Praser/parser/model/secure.js",
-      "source_sha256": "02c13e380a0733b386040513e2b7884e17c52f65ed3181190d6c1c04ee821d7d",
-      "modified_for_whole_index_cache": false
-    },
-    "ocr_runtime/Praser/parser/model/master.json.enc": {
-      "source": "Praser/parser/model/master.json.enc",
-      "source_sha256": "54fb2fcc19ade5f2182bcc59b6b886776c5d49c11737d2ab93925753bd9bc529",
       "modified_for_whole_index_cache": false
     },
     "ocr_runtime/Praser/parser/model/mya.traineddata": {
@@ -230,8 +220,20 @@
       "source": "Praser/parser/map/vector/shape-thresholds.json",
       "source_sha256": "8a160405676321a87299719975e38e188d752167f6242b5e217996dbb390df91",
       "modified_for_whole_index_cache": false
+    },
+    "secure.js": {
+      "source": "secure.js",
+      "source_sha256": "bea2ee49f277dfd053f1cdf75ac4da326c89707d2d9f063cd80c3fd036dedd56",
+      "modified_for_whole_index_cache": false,
+      "note": "installs at the Scraper/main deploy root beside ocr_runtime/ (four levels up from ocr_runtime/Praser/parser/text/scan.mjs); self-loads MASTER_JSON_KEY from a .env in that same root and owns the sealed master.json.cache there"
+    },
+    "master.json.enc": {
+      "source": "master.json.enc",
+      "source_sha256": "85a9130aa806f306e4ac0d6530f5ce0e1768e22aeb58f21f29232ec387839c1e",
+      "modified_for_whole_index_cache": false,
+      "note": "installs at the Scraper/main deploy root beside ocr_runtime/ (four levels up from ocr_runtime/Praser/parser/text/scan.mjs); the single sealed master, replacing the deleted parser/model/secure.js + parser/model/master.json.enc pair. Deploy also needs that root .env (secret, never pinned) and may keep the generated master.json.cache out of the bundle"
     }
   },
   "hashes_recomputed_at": "ddf9a4195932a92d759d2b3dbca422f02b575b74",
-  "hashes_recomputed_note": "Content hashes recomputed after the overlay was merged into this branch and the path-drift, single-cumulative-Parquet and .env-wiring fixes were applied. copied_runtime[*].source_sha256 still refers to the upstream Linga source and is unchanged; the OCR runtime files themselves were not edited."
+  "hashes_recomputed_note": "Repinned on the owner-shaped tree: crawler modules moved from flat crawler/bin into modules/ + support/ (see commit b24ef01), entrypoints now import bootstrap.py, and the sealed master door moved to the repo root (secure.js + master.json.enc + root .env). install.py/run.py pins had already drifted at the merge base and are repinned to the current sources. ocr_runtime/ overlay-only entries retain their upstream hashes; the overlay bundle must be rebuilt and re-verified on the VPS before deploy."
 }

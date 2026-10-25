@@ -4,7 +4,7 @@ What this system does, in one line per stage:
 
 ```
 download  ->  validate / unlock / repair / linearize   (python, pikepdf)
-          ->  classify the final readable bytes        (crawler/bin/pdf_classify.py)
+          ->  classify the final readable bytes        (modules/result/pdf_classify.py)
                 convertable/  Unicode or Zawgyi-One text books
                 scanned/      image-only books (NO OCR)
                 old/          pre-standard fonts / undecodable text (NO recovery)
@@ -22,7 +22,7 @@ upload    ->  category folders + parquet, verify sha256, then delete local
 | --- | --- |
 | Python 3.11+ | the whole pipeline |
 | [uv](https://docs.astral.sh/uv/) (or plain `pip`) | dependency install, `uv run main.py …` |
-| Node.js 22+ | the run-end segmentor bridge (`crawler/bin/segment_bridge.mjs`) and the continuous-OCR worker; `scripts/check-node.mjs` enforces 22 and will not install or switch Node |
+| Node.js 22+ | the run-end segmentor bridge (`support/segment_bridge.mjs`) and the continuous-OCR worker; `scripts/check-node.mjs` enforces 22 and will not install or switch Node |
 | npm | one-time `npm install` in `Engine/MonoSyllabism/mapbuilder` (bytenode, for the Engine's encrypted syllable-map loader) |
 
 Python packages (installed by the commands below, from `pyproject.toml`):

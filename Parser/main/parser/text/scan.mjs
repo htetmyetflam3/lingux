@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { readSecureJson } from "../model/secure.js";
-import { MAP_DIR, MODEL_DIR } from "../core/paths.mjs";
+import { readSecureJson, readMasterJson } from "../../../../secure.js";
+import { MAP_DIR } from "../core/paths.mjs";
 import { MARKS as MM_MARKS } from "./mm-score.mjs";
 
 /**
@@ -156,11 +156,12 @@ let scanDictionaryCache = undefined;
  */
 function loadScanDictionary() {
   if (scanDictionaryCache !== undefined) return scanDictionaryCache;
-  const filePath = path.resolve(
-    process.env.PRASER_SCAN_DICTIONARY || path.join(MODEL_DIR, "master.json.enc"),
-  );
+  // Default: the single repo-root master through the root secure.js cache.
+  // PRASER_SCAN_DICTIONARY keeps the worker's explicit override (any sealed
+  // .enc or plain JSON the generic loader can read).
+  const override = process.env.PRASER_SCAN_DICTIONARY;
   try {
-    scanDictionaryCache = loadMap(filePath) ?? {};
+    scanDictionaryCache = override ? (loadMap(path.resolve(override)) ?? {}) : readMasterJson();
   } catch {
     scanDictionaryCache = {};
   }

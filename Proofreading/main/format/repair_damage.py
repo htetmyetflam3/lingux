@@ -49,14 +49,31 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
-MASTER = ROOT / "Engine" / "knowledge" / "isTreasure" / "master.json"
+REPO = ROOT.parents[1]
+MASTER_ENC = REPO / "master.json.enc"
+SECURE_JS = REPO / "secure.js"
 LEDGER = HERE / "damage_ledger.json"
+
+
+def _read_master(path: Path) -> dict:
+    """Sealed .enc goes through repo-root secure.js (node door; the loader
+    owns its .env key and sealed cache). A plain-JSON --master override is
+    read directly so the override keeps working offline."""
+    if str(path).endswith(".enc"):
+        script = ("import {readSecureJson} from %s;"
+                  "process.stdout.write(JSON.stringify(readSecureJson(%s)));"
+                  % (json.dumps(str(SECURE_JS)), json.dumps(str(path.resolve()))))
+        out = subprocess.run(["node", "--input-type=module", "-e", script],
+                             capture_output=True, check=True, text=True).stdout
+        return json.loads(out)
+    return json.loads(path.read_text(encoding="utf-8"))
 
 # Burmese base characters that can carry the displaced vowel signs.
 _BASE = r"[\u1000-\u1021\u103F]"
@@ -104,7 +121,7 @@ class Dictionary:
     """
 
     def __init__(self, path: Path) -> None:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = _read_master(path)
         self.forms: set[str] = set()
         self.pos: dict[str, str] = {}
         self.prefixes: set[str] = set()
@@ -385,7 +402,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true", help="report only, write nothing")
     parser.add_argument("--report", type=Path, help="write the JSON report here")
     parser.add_argument("--rounds", type=int, default=3, help="repair passes, stops early when stable")
-    parser.add_argument("--master", type=Path, default=MASTER, help=argparse.SUPPRESS)
+    parser.add_argument("--master", type=Path, default=MASTER_ENC, help=argparse.SUPPRESS)
     parser.add_argument("--ledger", type=Path, default=LEDGER, help=argparse.SUPPRESS)
     parser.add_argument("--no-ledger", action="store_true", help="ignore the reviewed word list")
     args = parser.parse_args(argv)

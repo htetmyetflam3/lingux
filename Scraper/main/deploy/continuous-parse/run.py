@@ -38,7 +38,8 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'crawler' / 'bin'))
+sys.path.insert(0, str(ROOT))
+import bootstrap  # noqa: E402,F401
 from save_remote import load_config, _ssh_argv, sha256_file
 from mailer import RunMail
 import text_collect

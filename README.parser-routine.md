@@ -23,7 +23,7 @@ create `js/` vs `python/` splits. A routine dir can contain `.py`, `.mjs`,
 
 ### The crawler already runs frontend-style JS (established pattern)
 
-`Scraper/crawler/bin/text_collect.py` is Python, but its segmentation step is
+`Scraper/main/modules/result/text_collect.py` is Python, but its segmentation step is
 a Node subprocess: `_find_node22()` scans nvm/fnm/volta/system paths, prepends
 that bin dir to `PATH`, and runs
 `subprocess.run([node, "segment_bridge.mjs", out_path])`. The OCR service
@@ -108,7 +108,7 @@ the root `package.json`. No nested project config inside this group.
 
 ### Scraper routine → `scraper/`
 
-- `Scraper/crawler/bin/pdf_classify.py` — `classify_pdf(bytes)` returning
+- `Scraper/main/modules/result/pdf_classify.py` — `classify_pdf(bytes)` returning
   `scanned | old | convertable` (its header explicitly states it is the
   scraper-side port of the Site's two inspection layers, same thresholds);
   also `extract_convertable_text` for the no-verdict convertable queue
@@ -116,10 +116,10 @@ the root `package.json`. No nested project config inside this group.
   encoding split only), `scan.py` (structural rules), `pdf_extract.py`,
   `pdf_fonts.py` (cmap/ToUnicode decoding ladder), `rabbit.py`, `cleanup.py`,
   `mm_score.py`, `paths.py`
-- JS bridge entries already in the crawler: `crawler/bin/segment_bridge.mjs`,
+- JS bridge entries already in the crawler: `support/segment_bridge.mjs`,
   `deploy/continuous-ocr/worker.mjs`, `scripts/check-node.mjs`
-- Consumers: `Scraper/crawler/bin/save_local.py` and
-  `Scraper/crawler/bin/text_collect.py` (save/routing decisions), plus the
+- Consumers: `Scraper/main/modules/download/save_local.py` and
+  `Scraper/main/modules/result/text_collect.py` (save/routing decisions), plus the
   `deploy/continuous-ocr` and `deploy/continuous-parse` services
 
 ## Known asymmetry to preserve on purpose

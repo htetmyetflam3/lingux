@@ -12,7 +12,6 @@ from serpapi import SerpApiError, serpapi_search
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCAN_DIR = REPO_ROOT / "scan"
 OUTPUT_FILE = SCAN_DIR / "search_results.json"
-LEGACY_OUTPUT_FILE = REPO_ROOT / "crawler" / "search_results.json"
 DEFAULT_KEYWORDS = (
     "myanmar books download",
     "myanmar ebooks download",
@@ -62,15 +61,6 @@ def _read_api_key(explicit_key: str | None) -> str:
 
 def _load_saved(output_file: Path) -> list[dict]:
     """Previously saved results, or [] when no usable file exists yet."""
-    if not output_file.exists() and output_file == OUTPUT_FILE:
-        legacy = LEGACY_OUTPUT_FILE
-        if legacy.exists():
-            print(
-                f"[migrate] reading existing results from {legacy}; "
-                f"will save merged output to {output_file}",
-                flush=True,
-            )
-            output_file = legacy
     if not output_file.exists():
         return []
     try:
