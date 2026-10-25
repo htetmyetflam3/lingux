@@ -1,3 +1,6 @@
+// i rename this as path and this file here never define layout and resolve it own path by treating it own location as path and anything it need  reach to engine it will.import from path from helper 
+
+
 // FILE: standalone-web/engine-plugin.path.js
 //
 // Local, self-contained workspace path contract for the removable plugin.

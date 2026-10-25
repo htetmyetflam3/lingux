@@ -1,0 +1,2 @@
+this file here do nothing but import modules from main and   re-export  for plugin vice-versa. if the core language is python and integreating part is python thenu will need to delete this file and create index.py .if integreating is  for both u will need to create both index.py and  index.js 
+this will also import top level path and export for  modules inside main and plugin.
