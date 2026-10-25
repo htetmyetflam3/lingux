@@ -1,4 +1,4 @@
-import logger from '../../logen/site.js';
+import logger from '../../../Bridge/logen/site.js';
 import crypto from 'node:crypto';
 import { createOrUpdateCookie } from '../db/cookie.js';
 import { decodeCookie } from './codec.js';

@@ -1,4 +1,4 @@
-import logger from '../../logen/site.js';
+import logger from '../../../Bridge/logen/site.js';
 import session from 'express-session';
 import { db } from './db.js';
 import { SqliteSessionStore } from './sessionStore.js';

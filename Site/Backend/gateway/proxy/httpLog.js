@@ -1,5 +1,5 @@
 import morgan from 'morgan';
-import { palette as C, moduleBadges, statusColors, stamp, paint } from '../../../logen/site.js';
+import { palette as C, moduleBadges, statusColors, stamp, paint } from '../../../../Bridge/logen/site.js';
 const useColor = !process.env.NO_COLOR;
 function levelFor(status) {
   if (status >= 500) return 'error';
