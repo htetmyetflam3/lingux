@@ -1,20 +1,21 @@
-// Native engine boundary for the standalone web plugin.
+// Native engine boundary for the host web service.
 //
-// Everything web/queue lives in this plugin; the actual segmentation/tagging
-// stays in Engine/main and is reached through ONE dynamic import below.
+// Everything web/queue lives in host/; the segmentation/tagging stays in
+// architecture/ and is reached through the single BindEngine entry — no
+// direct import of an individual engine routine. The Site job worker pulls
+// source text over the queue and hands the string straight into the bridge:
+// the readFromApi() memory generator head feeds the same pipeline a file
+// would, so no temp .txt is ever staged. The tagged output is streamed to
+// the engine workspace by the engine's own writer and read back with the
+// engine's stream reader (readFileContent), not host-level fs calls.
 //
-// SCRATCH: the specifier is an obviously-named placeholder. Real wiring in a
-// later turn points it at Engine/main/init/cli.js (grammarPipeline/runMain) +
-// Engine/main/init/initS.js (invokeSyllableWithHash), the same pair
-// Bridge/api-server.js already drives. No path gymnastics until the dirs stop
-// moving.
-import fs from 'node:fs';
-import os from 'node:os';
+// Job identity: the Site queue's formId (one UUID per file, derived at
+// upload) IS the job id on both webs. It is passed as the bridge hash solely
+// to namespace segmented_<formId>_* against parallel runs — the web layer
+// never looks anything up by hash; job state in JobStore is the authority.
 import path from 'node:path';
-import crypto from 'node:crypto';
-
-// PLACEHOLDER: native Engine/main entry (real target: init/cli.js + init/initS.js)
-const NATIVE_ENGINE = './placeholderFor-Engine-main-native-tagger.js';
+import { BindEngine } from '../../architecture/bridge/bind-engine.js';
+import { readFileContent } from '../../architecture/MonoSyllabism/utilities/stream.js';
 
 // RESULT_MIME on the Site side (analysisFinalize.js):
 //   txt -> text/plain | docx -> wordprocessingml.document | pdf -> application/pdf
@@ -31,33 +32,29 @@ function safeStem(filename) {
 
 /**
  * Run the native pipeline over pulled source text and return a Site-ready
- * artifact. The temp .txt is the engine-local input shape /process already
- * uses; outputs are read back by hash and deleted before return.
+ * artifact. The text travels in memory through readFromApi(); the only disk
+ * touch is the engine writer's segmented_<formId>_* output, whose path the
+ * bridge result returns and readFileContent streams back.
  */
 export async function runEngineJob({ record, sourceText }) {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'engine-web-'));
-  const input = path.join(tmpDir, `${crypto.randomBytes(8).toString('hex')}.txt`);
-  try {
-    fs.writeFileSync(input, sourceText, 'utf8');
-
-    const { grammarPipeline } = await import(NATIVE_ENGINE);
-    const results = await grammarPipeline({ srcPath: input, hash: record.submitId });
-    const hash = results?.[0]?.hash ?? null;
-    if (!hash) throw new Error('native engine returned no result hash');
-
-    // PLACEHOLDER reader: real target is invokeSyllableWithHash(hash) from
-    // Engine/main/init/initS.js — positions/text read-back of segmented_{hash}_*
-    const { readEngineResult } = await import(NATIVE_ENGINE);
-    const outputText = String(await readEngineResult(hash));
-
-    const bytes = Buffer.from(outputText, 'utf8');
-    return {
-      filename: `${safeStem(record.filename)}.${RESULT_EXTENSION}`,
-      extension: RESULT_EXTENSION,
-      mime: RESULT_MIME,
-      bytes,
-    };
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+  if (typeof sourceText !== 'string' || sourceText.length === 0) {
+    throw new Error('runEngineJob: sourceText string is required');
   }
+
+  // formId is the cross-web job id: outputs land as segmented_<formId>_*
+  // purely for parallel-run collision avoidance. The result carries the
+  // concrete output path back, so nothing here resolves a file by hash.
+  const result = await BindEngine('site', { hash: record.formId, sourceText });
+  if (!result.rawPosPath) {
+    throw new Error('engine path-A returned no rawPosPath output');
+  }
+  const outputText = await readFileContent(result.rawPosPath);
+
+  const bytes = Buffer.from(outputText, 'utf8');
+  return {
+    filename: `${safeStem(record.filename)}.${RESULT_EXTENSION}`,
+    extension: RESULT_EXTENSION,
+    mime: RESULT_MIME,
+    bytes,
+  };
 }

@@ -25,13 +25,20 @@ export async function* runRuleEngine(taggedLines, hash) {
       const isAmbiguous      = token.rawPos.length > 1;
 
       /*  No classifier call, no override.  */
-      const finalPos = token.rawPos[0];
+      // Owner kernel rule: a word carrying exactly the two tags n AND v (a
+      // noun/verb dual with no other candidate) is collapsed to rbvn. The
+      // rawPos array itself is replaced, since the raw_pos writer renders it.
+      const isNounVerbOnly = token.rawPos.length === 2
+        && token.rawPos.includes('n')
+        && token.rawPos.includes('v');
+      const finalRawPos = isNounVerbOnly ? ['rbvn'] : token.rawPos;
+      const finalPos    = isNounVerbOnly ? 'rbvn'  : token.rawPos[0];
 
       resolvedTokens.push({
         syllables:      token.syllables,
         ids:            token.ids,
         joinedIds:      mergedIds(token.ids),
-        rawPos:         token.rawPos,
+        rawPos:         finalRawPos,
         finalPos,                     // ← kept for bridge compatibility
         isSingleSyllable,
         isAmbiguous,

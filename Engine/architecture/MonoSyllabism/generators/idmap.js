@@ -7,7 +7,7 @@
  * goes through Tree.loaded.loadMappedRows — the single home for that file.
  */
 
-import { TreeFile } from "../../Bridge/path.js";
+import { TreeFile } from "../../bridge/path.js";
 import { loadMappedRows } from "../main/grapheme/Tree.loaded.js";
 
 let _asciiToId = null;

@@ -29,7 +29,7 @@ loadEnv({ path: path.join(HERE, '.env') });
 const [{ config, keyShape }, { createApp: createSiteApp }, { publicRouter }] = await Promise.all([
   import('./config.mjs'),
   import('./server.mjs'),
-  import('./public-api.mjs'),
+  import('./api/public-api.mjs'),
 ]);
 
 export function createServer() {

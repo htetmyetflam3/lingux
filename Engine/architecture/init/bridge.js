@@ -15,15 +15,17 @@
 //                     are never constructed.
 //
 // MonoSyllabism imports are real (intra-engine, move with this file).
-// The three merged-Bridge modules are PLACEHOLDER specifiers — top-level
-// Bridge/ moves again in a later turn; re-point then, do not guess now.
+// The merged-Bridge modules resolved here permanently: the engine owns its
+// whole bridge under architecture/bridge/ — logen.js (report-first logger +
+// getDateTimeHash), Ginit.js (pass-through rule kernel) and path.js (the
+// workspace contract) are real siblings, not top-level Bridge placeholders.
 
-// PLACEHOLDER: merged top-level Bridge/path.js
-import { OutputFile } from "./placeholderFor-Bridge-path.js";
-// PLACEHOLDER: merged top-level Bridge/logen.js
-import { bridgeStart, bridgeEnd, bridgeLineCount, getDateTimeHash } from "./placeholderFor-Bridge-logen.js";
-// PLACEHOLDER: merged top-level Bridge/Ginit.js (rule-engine kernel)
-import { runRuleEngine } from "./placeholderFor-Bridge-Ginit.js";
+// Engine bridge path contract (architecture/bridge/path.js).
+import { OutputFile } from "../bridge/path.js";
+// Report-first logger + the internal datetime hash minter.
+import { bridgeStart, bridgeEnd, bridgeLineCount, getDateTimeHash } from "../bridge/logen.js";
+// Rule-engine kernel — pass-through today (architecture/bridge/Ginit.js).
+import { runRuleEngine } from "../bridge/Ginit.js";
 
 import { createStreamWriter, setHash } from "../MonoSyllabism/utilities/disk.js";
 import { getFlushLines } from "../MonoSyllabism/utilities/buffer.js";

@@ -167,7 +167,7 @@ On legacy pre-Unicode PDFs without `/ToUnicode` or usable TrueType `cmap` (such 
 ## What to Finish
 
 1. **Sync Pending Imposter Rules into Sealed Engine & Wasm Artifacts**:
-   - Add `"ဥ်": "ဉ်"` and NFC `"ဥ့်": "ဉ့်"` into `mapData.IMPOSTER` inside `Engine/MonoSyllabism/map/master.json` (restored via `node Engine/Bridge/restore-master.js`), then run `bash wasm/rebuild-box.sh` so `Engine/MonoSyllabism/map/master.json.enc`, `Engine/MonoSyllabism/map/payload.jsc`, and `wasm/box/box.wasm` carry the same imposter rules already enforced in `praser/cleanup.py`.
+   - Add `"ဥ်": "ဉ်"` and NFC `"ဥ့်": "ဉ့်"` into `mapData.IMPOSTER` inside `Engine/MonoSyllabism/map/master.json` (restored via `node Engine/architecture/MonoSyllabism/map/restore-master.mjs`), then run `bash wasm/rebuild-box.sh` so `Engine/MonoSyllabism/map/master.json.enc`, `Engine/MonoSyllabism/map/payload.jsc`, and `wasm/box/box.wasm` carry the same imposter rules already enforced in `praser/cleanup.py`.
 2. **Compile `wasm/box` Payload Modules to QuickJS Bytecode Before Encryption**:
    - Update `wasm/box/c/shim.c` (`box_eval` -> `JS_ReadObject` + `JS_EvalFunction` with fallback to `JS_Eval`) and `wasm/box/build-payload.mjs` (compile obfuscated bundle via `qjs -b` / `JS_WriteObject` before AES-256-GCM encryption) so `linga.payload` holds QuickJS bytecode rather than plaintext JS source inside the AES-GCM envelope.
 3. **Complete Legacy Vector/SVG Extraction Pipeline (`linga-vector`) and Wire Optional Recovery for `old/` PDFs**:

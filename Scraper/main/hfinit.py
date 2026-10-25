@@ -42,8 +42,10 @@ chose -- rather than falling back to pyarrow's default.
 
 Environment
 -----------
-    HG_TOKEN   Hugging Face access token (the "hg_full" one). If unset, login prompts
-               and the token is written to the HF cache, so later runs need nothing.
+    HG_TOKEN   Hugging Face access token (the "hg_full" one). Read from the
+               process environment OR from a local .env file (cwd first, then
+               next to this script). If still unset, login prompts and the
+               token is written to the HF cache, so later runs need nothing.
 """
 
 from __future__ import annotations
@@ -76,6 +78,42 @@ class HfInitError(RuntimeError):
 
 def _fail(message: str) -> "NoReturn":  # noqa: F821 - NoReturn only needed for typing
     raise HfInitError(message)
+
+
+def _load_dotenv() -> None:
+    """Fill missing environment variables from a local .env, no dependency.
+
+    Plain Python never reads .env itself, and only uv >= 0.5 auto-loads one
+    (from its project root), so relying on that silently fails on older uv or
+    a different cwd. Look in the current directory first, then next to this
+    script. Real environment variables always win — the file only fills gaps.
+    Accepts `KEY=value`, `export KEY=value`, and single/double-quoted values.
+    """
+    for env_path in (Path.cwd() / ".env", Path(__file__).resolve().parent / ".env"):
+        if not env_path.is_file():
+            continue
+        try:
+            lines = env_path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for raw in lines:
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            if line.startswith("export "):
+                line = line[len("export "):].strip()
+            key, _, value = line.partition("=")
+            key = key.strip()
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+                value = value[1:-1]
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
+def _token_shape_ok(token: str) -> bool:
+    """HF tokens (classic and fine-grained) are long and start with hf_."""
+    return bool(token) and token.startswith("hf_") and len(token) >= 30
 
 
 def _import_hub():
@@ -149,7 +187,16 @@ def do_login() -> None:
     if not token:
         token = getpass.getpass(f"Hugging Face token ({TOKEN_ENV} is not set): ").strip()
     if not token:
-        _fail("no token given, nothing to log in with")
+        _fail(
+            f"no token given. Set {TOKEN_ENV} in the environment or a .env next to "
+            "hfinit.py / in the current directory, then retry"
+        )
+    if not _token_shape_ok(token):
+        print(
+            f"[WARN] {TOKEN_ENV} does not look like a Hugging Face token "
+            "(expected a long value starting with 'hf_') — check it was not truncated",
+            file=sys.stderr,
+        )
 
     try:
         # skip_if_logged_in=False so an explicit token always replaces whatever was cached
@@ -180,8 +227,11 @@ def _identity_or_die(whoami) -> tuple[str | None, str]:
         me = whoami(token=token) if token else whoami()
     except Exception as exc:
         if token:
-            _fail(f"the Hub rejected ${TOKEN_ENV}: {exc}")
-        _fail(f"not logged in. Set {TOKEN_ENV}, or run: uv run hfinit.py")
+            _fail(f"the Hub rejected {TOKEN_ENV}: {exc}")
+        _fail(
+            f"not logged in. Put {TOKEN_ENV}=hf_... in a .env in the current directory "
+            "or next to hfinit.py, export it in the shell, or run: uv run hfinit.py"
+        )
     return token, str(me.get("name") or "?")
 
 
@@ -390,6 +440,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"{REPO_TYPE}s/{REPO_ID} into the folder DEST",
     )
     args = parser.parse_args(argv)
+    _load_dotenv()
 
     try:
         if args.download is not None:

@@ -2,6 +2,8 @@
 //
 // Env vocab mirrors Site/Backend/gateway/generator/engine.js + engineCollect.js:
 //   PORT                     listen port (default 9000), bound on 0.0.0.0
+//   FSM_MOUNT                legacy handshake mount (default /fsm)
+//   SITE_PORT                caller Site web port (default 3000)
 //   SITE_TO_ENGINE_KEY       32-hex key Site sends as x-api-key on POST /job
 //   ENGINE_TO_SITE_KEY       32-hex key this service sends back to the Site queue
 //   SITE_QUEUE_URL           Site engine-queue base (mounted at
@@ -10,6 +12,10 @@
 //   ENGINE_JOB_TIMEOUT_MS    jobToken TTL on the Site side (Site default 120000)
 //   ENGINE_PULL_RETRY_MS     wait between 404 "source not ready" retries
 //   ENGINE_MAX_CONCURRENT    in-process pipeline slots (Site upload side uses 2)
+//   ENGINE_ALLOWED_IPS       comma list of socket IPs admitted past the gate;
+//                            unset = loopback only (explicit value wins verbatim)
+//   ENGINE_ALLOWED_ORIGINS   comma list of Origin/Referer hosts; checked only
+//                            when the caller sends one (s2s fetches send none)
 //   JOB_STORE_MAX            bound on retained job records
 import crypto from 'node:crypto';
 
@@ -19,6 +25,14 @@ const int = (raw, fallback, min, max) => {
   return Math.min(Math.max(n, min), max);
 };
 
+const csvList = (raw) =>
+  String(raw ?? '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+const LOOPBACK_IPS = ['127.0.0.1', '::1', '::ffff:127.0.0.1'];
+
 // Site-side gate: ENGINE_KEY_RE = /^[0-9a-f]{32}$/i
 export const ENGINE_KEY_RE = /^[0-9a-f]{32}$/i;
 export const keyShape = (key) => (ENGINE_KEY_RE.test(String(key ?? '')) ? 'ok' : key ? 'shape' : 'missing');
@@ -27,6 +41,10 @@ const SITE_QUEUE_URL = String(process.env.SITE_QUEUE_URL || '').replace(/\/$/, '
 
 export const config = {
   port: int(process.env.PORT, 9000, 1, 65535),
+  // Legacy /fsm handshake mount and caller Site port (api/flags.js endpoint
+  // block); env-overridable, defaults match the old hardcoded values.
+  fsmMount: process.env.FSM_MOUNT || '/fsm',
+  sitePort: int(process.env.SITE_PORT, 3000, 1, 65535),
   siteToEngineKey: String(process.env.SITE_TO_ENGINE_KEY || '').trim(),
   engineToSiteKey: String(process.env.ENGINE_TO_SITE_KEY || '').trim(),
   siteQueueUrl: SITE_QUEUE_URL,
@@ -37,6 +55,18 @@ export const config = {
   pullRetryMs: int(process.env.ENGINE_PULL_RETRY_MS, 500, 50, 10000),
   transferTimeoutMs: int(process.env.ENGINE_TRANSFER_TIMEOUT_MS, 60000, 1000, 300000),
   maxConcurrent: int(process.env.ENGINE_MAX_CONCURRENT, 2, 1, 16),
+  // Validating layer ported from the staging api-server.js: IP + origin
+  // allowlists alongside the inbound key (key check itself lives in
+  // server.mjs). Explicit ENGINE_ALLOWED_IPS wins verbatim; otherwise
+  // loopback only. Origins are checked only when the caller sends one.
+  allowedIps: new Set(
+    process.env.ENGINE_ALLOWED_IPS ? csvList(process.env.ENGINE_ALLOWED_IPS) : LOOPBACK_IPS,
+  ),
+  allowedOrigins: new Set(
+    process.env.ENGINE_ALLOWED_ORIGINS
+      ? csvList(process.env.ENGINE_ALLOWED_ORIGINS)
+      : ['localhost:3000', 'localhost', '127.0.0.1:3000'],
+  ),
   jobStoreMax: int(process.env.JOB_STORE_MAX, 500, 10, 10000),
   // Public API: express-session. SESSION_SECRET is mandatory when
   // NODE_ENV=production; absent in dev we use a loud, insecure fallback.

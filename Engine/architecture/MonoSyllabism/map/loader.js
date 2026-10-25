@@ -18,6 +18,14 @@ const box = getBox();
 const call = (method, ...args) => box.call(method, ...args);
 const tables = box.call('tables');
 
+// The WASM call boundary round-trips through JSON, where Sets become arrays.
+// sourceMap.js defines these six names as Sets and host consumers call
+// Set-only methods (e.g. ALL_DIGITS.has in phonology.js), so rehydrate the
+// Set contract here, at the one host-side boundary — nowhere else touches
+// the raw deserialized tables. Structured objects (MMap/NewMap/…) survive
+// JSON unchanged and are exported below as-is.
+const asSet = value => new Set(Array.isArray(value) ? value : []);
+
 // ── functions (engine-api methods) ──
 export const normalize = (...a) => call('normalize', ...a);
 export const mapperNormalize = (...a) => call('mapperNormalize', ...a);
@@ -40,12 +48,12 @@ export const NewMap = tables.NewMap;
 export const newClause = tables.newClause;
 export const IMPOSTER = tables.IMPOSTER;
 export const Priority = tables.Priority;
-export const BLOCK_PUNCT = tables.BLOCK_PUNCT;
-export const ALL_DIGITS = tables.ALL_DIGITS;
-export const PUNCTUATION = tables.PUNCTUATION;
-export const Glue = tables.Glue;
-export const BURMESE_DIGITS = tables.BURMESE_DIGITS;
-export const ENGLISH_DIGITS = tables.ENGLISH_DIGITS;
+export const BLOCK_PUNCT = asSet(tables.BLOCK_PUNCT);
+export const ALL_DIGITS = asSet(tables.ALL_DIGITS);
+export const PUNCTUATION = asSet(tables.PUNCTUATION);
+export const Glue = asSet(tables.Glue);
+export const BURMESE_DIGITS = asSet(tables.BURMESE_DIGITS);
+export const ENGLISH_DIGITS = asSet(tables.ENGLISH_DIGITS);
 
 // Old loader contract: default = mapperNormalize.
 export default mapperNormalize;

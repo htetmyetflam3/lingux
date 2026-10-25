@@ -48,6 +48,24 @@ export class JobStore {
     return this.records.get(jobToken) ?? null;
   }
 
+  // Preceding-request guard for POST /job: the Site queue keys one file by
+  // formId and mints a fresh jobToken per engine round. A new round is only
+  // admissible once the prior round for that formId reached a terminal state
+  // (DONE/FAILED) — an active PENDING/RUNNING predecessor means the duplicate
+  // call must be refused at the door.
+  activeByFormId(formId) {
+    for (const rec of this.records.values()) {
+      if (
+        rec.formId === formId &&
+        rec.state !== JOB_STATES.DONE &&
+        rec.state !== JOB_STATES.FAILED
+      ) {
+        return rec;
+      }
+    }
+    return null;
+  }
+
   update(jobToken, patch) {
     const rec = this.records.get(jobToken);
     if (!rec) return null;

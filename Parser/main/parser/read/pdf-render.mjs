@@ -1,5 +1,24 @@
 import { fileURLToPath } from "node:url";
-import { createCanvas, loadImage } from "@napi-rs/canvas";
+
+// @napi-rs/canvas is a heavy native, OPTIONAL dependency: only the image/OCR
+// render lanes below need it, never text extraction. It is loaded lazily so a
+// machine without it can still import this module and run the whole parsing
+// pipeline; the render functions fail with an actionable message if called.
+let canvasApiPromise = null;
+function loadCanvas() {
+  if (!canvasApiPromise) {
+    canvasApiPromise = import("@napi-rs/canvas").catch((cause) => {
+      canvasApiPromise = null;
+      throw new Error(
+        "canvas render requested but @napi-rs/canvas is not installed " +
+          "(optional dependency; install it to enable OCR/image render lanes): " +
+          `${cause?.message || cause}`,
+        { cause },
+      );
+    });
+  }
+  return canvasApiPromise;
+}
 
 let pdfjsPromise = null;
 let pdfjsAssetRoot = null;
@@ -55,6 +74,7 @@ export async function renderPageCanvas(page, scale = 3, { maxPixels = Number.MAX
   if (!Number.isSafeInteger(pixels) || pixels > maxPixels) {
     throw new Error(`PDF render exceeds the ${maxPixels} pixel cap`);
   }
+  const { createCanvas } = await loadCanvas();
   const canvas = createCanvas(width, height);
   const context = canvas.getContext("2d");
   await page.render({ canvasContext: context, viewport, canvas }).promise;
@@ -110,6 +130,7 @@ export function cropCanvasRgba(canvas, bbox, { scale = 1, pad = 0 } = {}) {
 
 /** Decode an image a document or a scanner already carries (PNG, JPEG, ...) to RGBA. */
 export async function decodeImageRgba(bytes) {
+  const { createCanvas, loadImage } = await loadCanvas();
   const image = await loadImage(Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes));
   const canvas = createCanvas(image.width, image.height);
   const context = canvas.getContext("2d");

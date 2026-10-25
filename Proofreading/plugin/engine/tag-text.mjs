@@ -1,11 +1,19 @@
 // Offline production entry: supplied Engine + freshly rebuilt required WASM.
+//
+// New engine shape: the tagger is reached through ONE boundary — the
+// repo-root Bridge facade re-exporting Engine/index.js (BindEngine). No
+// Engine/Bridge shims, no graph/build.js, no deep MonoSyllabism imports. The
+// engine consumes the prebuilt .cache-tree as-is; this entry only audits the
+// supplied inputs, seeds the disposable work dir, makes the single
+// BindEngine('proofreading') path-A call, and writes the stats JSON.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { configureWorkspace } from './Bridge/path.js';
+import { BindEngine, cacheInfo, configureWorkspace, readFileContent } from '../../../Bridge/path.js';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(HERE, '..');
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const [sourceArg, workArg, resultArg] = process.argv.slice(2);
 if (!sourceArg || !workArg || !resultArg) {
@@ -22,41 +30,30 @@ const masterPath = path.join(ROOT, 'Engine/knowledge/isTreasure/master.json');
 const masterBytes = fs.readFileSync(masterPath), masterHash = hash(masterBytes);
 const build = JSON.parse(fs.readFileSync(path.join(ROOT, 'scraper/wasm/box/build-info.json')));
 // top/resolution belong to comparison. Only actual normalizer-table changes
-// require rebuilding the box; the POS dictionary is rebuilt separately below.
+// require rebuilding the box; the POS dictionary ships prebuilt in .cache-tree.
 const masterData = JSON.parse(masterBytes);
 assertMapData(masterData.mapData);
-const treeDir = path.join(work, 'tree'), dataDir = path.join(work, 'data');
+// New shape: the engine ships its own verified prebuilt tree
+// (.cache-tree + CACHE-MANIFEST.json) and the tree loader verifies every
+// artifact's sha256 itself before first use. Nothing is copied into WORK and
+// no external CACHE-SOURCE check exists here anymore; only the mutable run
+// outputs (out/log) are retargeted at the disposable work dir.
 const outputDir = path.join(work, 'out'), logDir = path.join(work, 'log');
-for (const dir of [treeDir, dataDir, outputDir, logDir]) fs.mkdirSync(dir, {recursive:true});
-const cacheRoot = path.join(ROOT, 'Engine/.cache-tree');
-const cacheSource = JSON.parse(fs.readFileSync(path.join(ROOT, 'Engine/CACHE-SOURCE.json')));
-for (const [name, expected] of Object.entries(cacheSource.sha256)) {
-  const bytes = fs.readFileSync(path.join(cacheRoot, name));
-  if (hash(bytes) !== expected) throw new Error(`Original scraper cache hash mismatch: ${name}`);
-  fs.writeFileSync(path.join(treeDir, name), bytes);
-}
-// Never let the supplied builder's cleanup overwrite the owner's master.
-fs.writeFileSync(path.join(dataDir, 'master.json'), masterBytes);
-for (const name of ['pos.tree.json','pos-fail.txt']) {
-  fs.rmSync(path.join(treeDir, name), {force:true});
-}
-configureWorkspace({treeDir, dataDir, outputDir, logDir});
-const { init: initLog } = await import('./Bridge/logen.js');
-initLog({DEBUG:false, MODE:'multi', SEGMENTED_MODE:'fromdisk'});
-const { runBuildPos } = await import('./MonoSyllabism/graph/build.js');
-const tree = await runBuildPos(treeDir);
-if (!Object.keys(tree).length) throw new Error('POS build produced an empty tree; refusing to label an untagged book as tagged');
-const { readAndPrepare } = await import('./MonoSyllabism/generators/input.js');
-const { runSegmentor } = await import('./MonoSyllabism/main/phoneme/lexer.js');
-const { setHash } = await import('./MonoSyllabism/utilities/disk.js');
-const { bridge } = await import('./Bridge/bridge.js');
-const session = hash(fs.readFileSync(source)).slice(0,24);
-setHash(session);
-const result = await bridge(runSegmentor(readAndPrepare(source)), {syllable:false, rawPos:true}, session, source);
+for (const dir of [outputDir, logDir]) fs.mkdirSync(dir, { recursive: true });
+configureWorkspace({ outputDir, logDir });
+const treeInfo = cacheInfo();
+
+// Single engine call: signature 'proofreading' is path A (fullstopHolder ->
+// runTagger -> pass-through rule engine, syllable + raw_pos writers). The
+// source hash names segmented_<hash>_* and is validated as a flat token.
+const session = hash(fs.readFileSync(source)).slice(0, 24);
+const result = await BindEngine('proofreading', { hash: session, inputPath: source });
 if (!result.rawPosPath || !fs.statSync(result.rawPosPath).size) throw new Error('No tagged output produced');
 if (hash(fs.readFileSync(masterPath)) !== masterHash) throw new Error('Original master was modified');
-const raw = fs.readFileSync(result.rawPosPath, 'utf8');
-const failFile = path.join(treeDir, 'pos-fail.txt');
+// Engine output is read back with the engine's own stream reader, not host fs.
+const raw = await readFileContent(result.rawPosPath);
+// The POS dictionary is a prebuilt, manifest-verified tree: no builder runs,
+// so no pos-fail.txt is produced and the rejected-entry count is always 0.
 const stats = {
   runtime:'required rebuilt scraper WASM',
   runtime_guard:'scraper/wasm/box/runtime-guard.mjs',
@@ -64,15 +61,17 @@ const stats = {
   wasm_box:'scraper/wasm/box/box.wasm',
   wasm_host:'scraper/wasm/box/host.mjs',
   wasm_instance_scope:'shared module instance',
-  input_pipeline:'WASM mapperNormalize; English/digit blocks masked before segmentation',
+  input_pipeline:"BindEngine('proofreading') path A; built-in verified .cache-tree, never rebuilt or copied",
+  engine_entry:'Engine/index.js via repo-root Bridge/path.js facade',
+  tree_manifest:treeInfo.manifest,
+  tree_generated_at:treeInfo.generatedAt,
   wasm_sha256:build.box_sha256, master_sha256:masterHash,
   tag_data_sha256:hash(JSON.stringify({dictionary:masterData.dictionary,mapData:masterData.mapData})),
-  scraper_cache_commit:cacheSource.commit,
   source_sha256:hash(fs.readFileSync(source)),
   raw_pos_path:result.rawPosPath, raw_pos_sha256:hash(Buffer.from(raw)),
   raw_pos_bytes:Buffer.byteLength(raw), output_units:result.lineCount,
-  pos_tree_roots:Object.keys(tree).length,
-  rejected_dictionary_entries:fs.existsSync(failFile) ? fs.readFileSync(failFile,'utf8').trim().split('\n').filter(Boolean).length : 0,
+  pos_tree_roots:treeInfo.counts.posRoots ?? 0,
+  rejected_dictionary_entries:0,
   tag_occurrences:[...raw.matchAll(/\{[^{}]+\}/g)].length,
   unknown_tag_occurrences:[...raw.matchAll(/\{\?\}/g)].length,
   ambiguous_tag_occurrences:[...raw.matchAll(/\{[^{}]*,[^{}]*\}/g)].length,

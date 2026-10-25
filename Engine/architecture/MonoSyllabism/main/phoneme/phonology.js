@@ -3,7 +3,7 @@ import {
 	taggerEnd,
 	tagTokenReceived,
 	tagWordCount,
-} from "../../../Bridge/logen.js";
+} from "../../../bridge/logen.js";
 
 import { walkPos } from "../grapheme/traverser.js";
 import { PUNCTUATION, ALL_DIGITS } from "../../map/loader.js";

@@ -11,8 +11,8 @@
 */
 
 import fs from "fs";
-import { writerStart, writerEnd, writerWrote, getDateTimeHash, readerStart, readerEnd, readerFail } from "../../Bridge/logen.js";
-import { OutputFile, TreeFile, joinPath } from "../../Bridge/path.js";
+import { writerStart, writerEnd, writerWrote, getDateTimeHash, readerStart, readerEnd, readerFail } from "../../bridge/logen.js";
+import { OutputFile, TreeFile, joinPath } from "../../bridge/path.js";
 import { toSyllableLine } from "./formatter.js";
 import { toLineStrings } from "../generators/SfomatterForP.js";
 
@@ -39,6 +39,8 @@ export function createStreamWriter(outputDir = OutputFile(), suffix = "", flushL
 	const outputPath = joinPath(outputDir, `segmented_${ts}${suffixPart}.txt`);
 	let lineCount = 0;
 	let buffer = "";
+	// A fresh checkout ships no runtime workspace; the writer owns its dir.
+	fs.mkdirSync(outputDir, { recursive: true });
 	fs.writeFileSync(outputPath, "", "utf8");
 	writerStart({ outputDir, lineCount: 0 });
 
