@@ -25,14 +25,29 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 import unicodedata
 from collections import Counter, defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+REPO = ROOT.parents[1]
+MASTER_ENC = REPO / "master.json.enc"
+SECURE_JS = REPO / "secure.js"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(ROOT / "mt"))
+
+
+def _load_master() -> dict:
+    """Sealed repo-root master through secure.js (node door; secure.js owns
+    the .env key and the sealed cache — Python holds neither)."""
+    script = ("import {readMasterJson} from %s;"
+              "process.stdout.write(JSON.stringify(readMasterJson()));"
+              % json.dumps(str(SECURE_JS)))
+    out = subprocess.run(["node", "--input-type=module", "-e", script],
+                         capture_output=True, check=True, text=True).stdout
+    return json.loads(out)
 
 from tag import chapter_text, tag_text  # noqa: E402
 
@@ -78,7 +93,7 @@ class Dictionary:
     """
 
     def __init__(self) -> None:
-        data = json.loads((ROOT / "Engine/knowledge/isTreasure/master.json").read_text(encoding="utf-8"))
+        data = _load_master()
         self.syllables = load_units()
         self.words: dict[str, set[str]] = defaultdict(set)
         self.unreachable: dict[str, set[str]] = defaultdict(set)

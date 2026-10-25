@@ -15,11 +15,25 @@ The table is read as data: the table is what the WASM payload inlines, and
 `scraper/wasm/box/tools/verify-payload.mjs` proves the binary carries it.
 """
 import json
+import subprocess
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3] / "Proofreading" / "main"
-MASTER = ROOT / "Engine/knowledge/isTreasure/master.json"
+REPO = Path(__file__).resolve().parents[3]
+ROOT = REPO / "Proofreading" / "main"
+MASTER_ENC = REPO / "master.json.enc"
+SECURE_JS = REPO / "secure.js"
+
+
+def _load_master():
+    # Node door into repo-root secure.js: it owns the .env key and the sealed
+    # cache; Python never holds the key or writes a readable copy.
+    script = ("import {readMasterJson} from %s;"
+              "process.stdout.write(JSON.stringify(readMasterJson()));"
+              % json.dumps(str(SECURE_JS)))
+    out = subprocess.run(["node", "--input-type=module", "-e", script],
+                         capture_output=True, check=True, text=True).stdout
+    return json.loads(out)
 
 # Every `ဥ` unit and the `ဉ` spelling it has to absorb.
 U_SIBLINGS = {"ဥုံ": "ဉုံ", "ဥမ်": "ဉမ်", "ဉ်": "ဥ်"}
@@ -28,7 +42,7 @@ U_SIBLINGS = {"ဥုံ": "ဉုံ", "ဥမ်": "ဉမ်", "ဉ်": "ဥ
 class ImposterTable(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        master = json.loads(MASTER.read_text(encoding="utf-8"))
+        master = _load_master()
         cls.imposter = master["mapData"]["IMPOSTER"]
 
     def test_bare_katka_no_longer_rewrites_real_conjuncts(self):

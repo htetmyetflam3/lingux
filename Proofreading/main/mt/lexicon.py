@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 import unicodedata
 from collections import defaultdict
@@ -34,8 +35,24 @@ from functools import lru_cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MASTER = ROOT / "Engine/knowledge/isTreasure/master.json"
+REPO = ROOT.parents[1]
+MASTER_ENC = REPO / "master.json.enc"
+SECURE_JS = REPO / "secure.js"
 MAPPED = ROOT / "Engine/.cache-tree/syllable.mapped.txt"
+
+
+def _load_master() -> dict:
+    """Read the sealed repo-root master through secure.js (node door).
+
+    secure.js itself owns the .env key and the sealed on-disk cache; Python
+    never handles the key and never writes a plaintext copy.
+    """
+    script = ("import {readMasterJson} from %s;"
+              "process.stdout.write(JSON.stringify(readMasterJson()));"
+              % json.dumps(str(SECURE_JS)))
+    out = subprocess.run(["node", "--input-type=module", "-e", script],
+                         capture_output=True, check=True, text=True).stdout
+    return json.loads(out)
 
 # The engine writes asat (U+103A) before dot-below (U+1037); NFC writes the
 # reverse. Compare both spellings under one key.
@@ -57,7 +74,7 @@ def is_mark(ch: str) -> bool:
 @lru_cache(maxsize=1)
 def _tables() -> tuple[dict[str, set[str]], dict[str, set[str]], set[str]]:
     """(reachable entries, unreachable entries, syllable inventory)."""
-    data = json.loads(MASTER.read_text(encoding="utf-8"))
+    data = _load_master()
     units = set()
     if MAPPED.exists():
         for line in MAPPED.read_text(encoding="utf-8").splitlines():

@@ -2,7 +2,7 @@
   "_source": {
     "marks": "map/mm-score.json marks + map/scan.json strayMarks",
     "consonants": "map/scan.json base + extraBases",
-    "syllables": "model/master.json.enc syllables.burmese (pali excluded) + tall-form pair"
+    "syllables": "repo-root master.json.enc syllables.burmese (pali excluded) + tall-form pair, read via root secure.js"
   },
   "counts": {
     "marks": 17,

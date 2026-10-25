@@ -18,6 +18,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { getBox, assertMapData } from '../scraper/wasm/box/host.mjs';
+import { readMasterJson, MASTER_ENC } from '../../../secure.js';
 
 // Removed with the graph/build.js era. See header: populate from the owner's
 // new POS-code source to re-enable the comparison export.
@@ -41,9 +42,11 @@ if (POS_MAP === null || ENGINE_NORMALIZER === null) {
 }
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const read = relative => fs.readFileSync(path.join(ROOT, relative));
-const masterPath = 'Engine/knowledge/isTreasure/master.json';
+// Single sealed master at the repo root: its bytes are fingerprinted directly,
+// its content comes through secure.js (root .env key + sealed cache).
+const masterPath = 'master.json.enc';
 const rulesPath = 'Engine/knowledge/isTreasure/mainrules.js';
-const masterBytes = read(masterPath), rulesBytes = read(rulesPath);
+const masterBytes = fs.readFileSync(MASTER_ENC), rulesBytes = read(rulesPath);
 
 // mainrules.js is a JSON object followed by a JavaScript block —
 // `const MYANMAR_GRAMMAR_SEQUENCES = [...]`, single-quoted and commented. It is
@@ -78,7 +81,7 @@ function parseRules(bytes) {
   return JSON.parse(out);
 }
 
-const master = JSON.parse(masterBytes), rules = parseRules(rulesBytes);
+const master = readMasterJson(), rules = parseRules(rulesBytes);
 if (!master.top || !master.resolution) throw new Error('Master top/resolution sections are required for comparison');
 assertMapData(master.mapData);
 getBox();

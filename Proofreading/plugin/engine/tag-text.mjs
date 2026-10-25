@@ -11,6 +11,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { BindEngine, cacheInfo, configureWorkspace, readFileContent } from '../../../Bridge/path.js';
+import { readMasterJson, MASTER_ENC } from '../../../secure.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -26,12 +27,13 @@ if (globalThis[Symbol.for('proofreading.scraper.wasm-only')] !== true) {
 const { getBox, assertMapData } = await import('../scraper/wasm/box/host.mjs');
 getBox(); // Require the actual shared WASM box before any tagging work.
 const source = path.resolve(sourceArg), work = path.resolve(workArg);
-const masterPath = path.join(ROOT, 'Engine/knowledge/isTreasure/master.json');
-const masterBytes = fs.readFileSync(masterPath), masterHash = hash(masterBytes);
+// The single sealed master at the repo root; the hash fingerprints the sealed
+// source, readMasterJson() goes through secure.js and its sealed cache.
+const masterHash = hash(fs.readFileSync(MASTER_ENC));
 const build = JSON.parse(fs.readFileSync(path.join(ROOT, 'scraper/wasm/box/build-info.json')));
 // top/resolution belong to comparison. Only actual normalizer-table changes
 // require rebuilding the box; the POS dictionary ships prebuilt in .cache-tree.
-const masterData = JSON.parse(masterBytes);
+const masterData = readMasterJson();
 assertMapData(masterData.mapData);
 // New shape: the engine ships its own verified prebuilt tree
 // (.cache-tree + CACHE-MANIFEST.json) and the tree loader verifies every
@@ -49,7 +51,7 @@ const treeInfo = cacheInfo();
 const session = hash(fs.readFileSync(source)).slice(0, 24);
 const result = await BindEngine('proofreading', { hash: session, inputPath: source });
 if (!result.rawPosPath || !fs.statSync(result.rawPosPath).size) throw new Error('No tagged output produced');
-if (hash(fs.readFileSync(masterPath)) !== masterHash) throw new Error('Original master was modified');
+if (hash(fs.readFileSync(MASTER_ENC)) !== masterHash) throw new Error('Original master was modified');
 // Engine output is read back with the engine's own stream reader, not host fs.
 const raw = await readFileContent(result.rawPosPath);
 // The POS dictionary is a prebuilt, manifest-verified tree: no builder runs,
