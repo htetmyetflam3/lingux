@@ -31,8 +31,8 @@ Shell scripts run directly: `./install.sh`, `./git.sh "message"`.
 | Start the continuous OCR service | `uv run ocr.py` |
 | Rebuild the collection from the host's `convertable/` PDFs (parser, no OCR) | `uv run parse.py` |
 | Install `scraper.service` (the download pipeline) | `sudo python3 deploy/install_service.py -- --process -l 2` |
-| Find duplicate PDFs on disk | `uv run crawler/bin/dedup_pdfs.py` |
-| Backfill URLs that failed | `uv run crawler/bin/failed_urls.py --dry-run` |
+| Find duplicate PDFs on disk | `uv run modules/guard/disk/dedup_pdfs.py` |
+| Backfill URLs that failed | `uv run modules/url/failed_urls.py --dry-run` |
 
 ---
 
@@ -79,11 +79,11 @@ listing every problem with its part and time; nothing in between unless it quits
 an error, in which case the failed email goes right away with the problems so far.
 
 **Upload retries** — a file that fails is retried after 15 s, 30 s, 45 s, 1 min,
-1 min 30 s, 2 min, 2 min 30 s and 3 min (`UPLOAD_WAITS` in `crawler/bin/save_remote.py`).
+1 min 30 s, 2 min, 2 min 30 s and 3 min (`UPLOAD_WAITS` in `modules/download/save_remote.py`).
 Then uploading stops instead of looping forever: with an error when under 5 GB is free,
 otherwise normally, and the files stay in `pdfs/`.
 
-**Disk** — 5 GB is kept free for the system (`DISK_FLOOR` in `crawler/bin/disk_floor.py`).
+**Disk** — 5 GB is kept free for the system (`DISK_FLOOR` in `modules/guard/disk/disk_floor.py`).
 Every download command checks it before each file and quits with an error under it; free
 space, then rerun to resume.
 
@@ -318,10 +318,10 @@ process and nobody has to run `npm run rebuild` by hand on the VPS.
 
 | Command | Flags | What it does |
 | --- | --- | --- |
-| `uv run crawler/bin/dedup_pdfs.py` | `[directory]`, `--delete` | Scan for duplicate PDFs. `directory` defaults to this repo's `pdfs/`. **Dry run by default** — `--delete` actually removes them. Exit 2 if the directory does not exist. |
-| `uv run crawler/bin/failed_urls.py` | `--scan-dir DIR`, `--dry-run`, `--all`, `--zip ZIP`, `--pdfs-dir DIR`, `--manifest FILE`, `--delete-zip ZIP`, `--base DIR`, `--yes` | Backfill failed URLs from crawl/download history, or audit a batch zip. `--all` counts every unmatched crawled URL, not only download-looking ones. `--zip` and `--delete-zip` are mutually exclusive. `--delete-zip` is a separate step after the upload is verified and deletes exactly the files in the zip's manifest — **dry run unless `--yes`**. |
-| `uv run crawler/bin/pdf_classify.py` | `FILE.pdf [FILE.pdf …]` | Print one PDF's category, encoding, page count, decode result, text/image bytes and scan counts. Exit 2 with a usage line if given no file. |
-| `uv run crawler/bin/text_collect.py` | `[OUTPUT_DIR]` | Manual run-end flush of `scan/collected.jsonl` into the collection: one segmentor pass, then the parquet write. `OUTPUT_DIR` defaults to the pipeline's own. Exit 1 if the flush failed. Note this is currently dormant — `append_document()`, the only writer of that journal, has no callers, so the flush reports "no convertable text collected". |
+| `uv run modules/guard/disk/dedup_pdfs.py` | `[directory]`, `--delete` | Scan for duplicate PDFs. `directory` defaults to this repo's `pdfs/`. **Dry run by default** — `--delete` actually removes them. Exit 2 if the directory does not exist. |
+| `uv run modules/url/failed_urls.py` | `--scan-dir DIR`, `--dry-run`, `--all`, `--zip ZIP`, `--pdfs-dir DIR`, `--manifest FILE`, `--delete-zip ZIP`, `--base DIR`, `--yes` | Backfill failed URLs from crawl/download history, or audit a batch zip. `--all` counts every unmatched crawled URL, not only download-looking ones. `--zip` and `--delete-zip` are mutually exclusive. `--delete-zip` is a separate step after the upload is verified and deletes exactly the files in the zip's manifest — **dry run unless `--yes`**. |
+| `uv run modules/result/pdf_classify.py` | `FILE.pdf [FILE.pdf …]` | Print one PDF's category, encoding, page count, decode result, text/image bytes and scan counts. Exit 2 with a usage line if given no file. |
+| `uv run modules/result/text_collect.py` | `[OUTPUT_DIR]` | Manual run-end flush of `scan/collected.jsonl` into the collection: one segmentor pass, then the parquet write. `OUTPUT_DIR` defaults to the pipeline's own. Exit 1 if the flush failed. Note this is currently dormant — `append_document()`, the only writer of that journal, has no callers, so the flush reports "no convertable text collected". |
 | `uv run praser/scan.py` | `file`, `-o/--out`, `-n/--per-rule N`, `-d/--dict` | Scan decoded text for the damage a quality score cannot see: a mark with no base, a pair Burmese cannot write, a syllable printed three times. `file` is a parsed `.txt` produced by the praser; the log defaults to `<file>.scan.txt`; `-n` is examples per rule (default 25). |
 | `uv run wasm/box/loader.py` | `[sample]` | Host loader for `wasm/box/box.wasm`: boots the QuickJS engine in memory and exposes the three normalizer modes. The optional argument is the text to normalize (default `မြန်မာစာ`). |
 

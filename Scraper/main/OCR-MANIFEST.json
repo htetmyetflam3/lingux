@@ -3,11 +3,11 @@
   "scraper_reference": "26779d831937736bf3b88bc8aad0dbd060b9b111",
   "linga_base": "e666961af69a2dab50e78b57fd5f617869c022c9",
   "reused_not_included": {
-    "crawler/bin/save_remote.py": "2c0f75bd601ae19f907df0a1436e73ac42e55129886724650f4074810c17749b",
-    "crawler/bin/mailer.py": "83c9299009247ccfedb9cc713b1b718efad9f13ec3b1e86157ae49f87d3a5e6a",
-    "crawler/bin/text_collect.py": "82645ee161c41ce2a764c0c02eec6011875d3cae98a5ebdb02d1728dba266823",
-    "crawler/bin/segment_bridge.mjs": "52651ec927dc0e34064ac6ae39d7bbc4c3e1e132da7fc98a340b1065d44726c7",
-    "crawler/bin/disk_floor.py": "696a982976502c74121529b7cc6d75cc443ff8acc375a316380c367c0f21f410",
+    "modules/download/save_remote.py": "2c0f75bd601ae19f907df0a1436e73ac42e55129886724650f4074810c17749b",
+    "support/mailer.py": "83c9299009247ccfedb9cc713b1b718efad9f13ec3b1e86157ae49f87d3a5e6a",
+    "modules/result/text_collect.py": "82645ee161c41ce2a764c0c02eec6011875d3cae98a5ebdb02d1728dba266823",
+    "support/segment_bridge.mjs": "52651ec927dc0e34064ac6ae39d7bbc4c3e1e132da7fc98a340b1065d44726c7",
+    "modules/guard/disk/disk_floor.py": "696a982976502c74121529b7cc6d75cc443ff8acc375a316380c367c0f21f410",
     "deploy/engine_ready.py": "44576dda86bcee8b07b56e7b37fc8be70789e15bbaffdf17de0dfa6f731f9052"
   },
   "files": {

@@ -22,8 +22,8 @@ def call(*args, **kwargs):
 
 
 def main():
-    required = ['crawler/bin/save_remote.py', 'crawler/bin/mailer.py',
-                'crawler/bin/text_collect.py', 'crawler/bin/segment_bridge.mjs',
+    required = ['modules/download/save_remote.py', 'support/mailer.py',
+                'modules/result/text_collect.py', 'support/segment_bridge.mjs',
                 'deploy/engine_ready.py', 'Engine/MonoSyllabism']
     missing = [p for p in required if not (ROOT / p).exists()]
     if missing:
@@ -49,7 +49,8 @@ def main():
         if active == 'deactivating':
             sys.exit('OCR is stopping; run this command again after it stops.')
         # Use the existing SSH loader as-is. No duplicate credentials parser.
-        sys.path.insert(0, str(ROOT / 'crawler' / 'bin'))
+        sys.path.insert(0, str(ROOT))
+        import bootstrap  # noqa: E402,F401
         from save_remote import load_config
         config = load_config()
         print(f'Using existing scraper SSH settings: {config.user}@{config.host}:{config.port}', flush=True)

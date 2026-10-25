@@ -71,9 +71,9 @@ scraper/
 
 ---
 
-### 2. Parser Architecture (`praser/` + `crawler/bin/pdf_classify.py`)
+### 2. Parser Architecture (`praser/` + `modules/result/pdf_classify.py`)
 
-The Python parser in `praser/` is a zero-external-PDF-library extractor tailored specifically for Burmese PDFs. Prior to reaching `praser/`, `crawler/bin/pdf_support.py` runs `qpdf` (`--decrypt --stream-data=uncompress --object-streams=disable --linearize`) so that every object and content stream is directly inspectable in memory.
+The Python parser in `praser/` is a zero-external-PDF-library extractor tailored specifically for Burmese PDFs. Prior to reaching `praser/`, `support/pdf_support.py` runs `qpdf` (`--decrypt --stream-data=uncompress --object-streams=disable --linearize`) so that every object and content stream is directly inspectable in memory.
 
 #### Step A: Low-Level PDF Object, Font & Stream Parsing (`praser/pdf_extract.py`)
 1. **Object Decomposition (`parse_pdf_objects`)**: Parses all `N 0 obj ... endobj` blocks and decompresses `/FlateDecode` streams (trying standard zlib and raw deflate `-15` fallback).
@@ -96,7 +96,7 @@ The Python parser in `praser/` is a zero-external-PDF-library extractor tailored
 1. **Stage 1 — Per-Font `/ToUnicode`**: Applies the font's own `/ToUnicode` map if present, falling back to `fallback_cmap` (embedded TrueType `cmap` or identity probe) for unmapped CIDs.
 2. **Stage 2 — Sidecar `cipher-map.json`**: Applies post-`ToUnicode` substitutions for Private Use Area (`U+E000..U+F8FF`) and Arabic Presentation Forms (`U+FB50..U+FDFF`, `U+FE70..U+FEFF`) used by Zawgyi-One and Masterpiece Uni Sans to encode contextual medial/stack variants (`map/cipher-map.json`).
 
-#### Step C: 3-Way PDF Classification & Decoding Ladder (`crawler/bin/pdf_classify.py`)
+#### Step C: 3-Way PDF Classification & Decoding Ladder (`modules/result/pdf_classify.py`)
 `classify_pdf(pdf_bytes)` classifies each downloaded PDF in memory into one of three categories (`convertable`, `scanned`, `old`) using two inspection layers:
 
 1. **Image vs. Text Routing Probe**:
@@ -121,7 +121,7 @@ The Python parser in `praser/` is a zero-external-PDF-library extractor tailored
    - Executes ordered regex substitutions from `map/cleanup.json` (zero-width space removal, composite vowel normalization, kinzi reordering, double-mark deduplication, tall-aa normalization).
    - Applies imposter fixes (`ဥ် -> ဉ်` and NFC-composed `ဥ့် -> ဉ့်`).
    - Reorders dependent marks after each consonant base according to the canonical priority table in `map/mm-score.json`.
-2. **Engine Normalization & Syllable Segmentation (`crawler/bin/segment_bridge.mjs` -> `Engine/`)**:
+2. **Engine Normalization & Syllable Segmentation (`support/segment_bridge.mjs` -> `Engine/`)**:
    - `text_collect.py` streams convertable book text into `segment_bridge.mjs` on Node.js 22+.
    - `Engine/MonoSyllabism/map/loader.js` loads `payload.jsc` (V8 bytecode compiled via Bytenode from obfuscated `function.js`, `normalize.js`, `sourceMap.js`, `sourceMapper.js`) and decrypts `master.json.enc` in memory using AES-256-GCM.
    - Each document is normalized by `mapperNormalize` (which reorders marks and wraps non-Myanmar blocks in `{...}` so English/digits are preserved) and segmented by `runSegmentor` against the precomputed syllable trie in `Engine/.cache-tree/`.
@@ -147,13 +147,13 @@ On legacy pre-Unicode PDFs without `/ToUnicode` or usable TrueType `cmap` (such 
 
 1. **Launch (`main.py` + `scripts/systemd_launcher.py`)**:
    - Every operational `main.py` invocation stops any running `scraper-main-*.service` unit and launches a fresh background transient systemd unit (`scraper-main-<id>.service`), returning the unit name and `journalctl` commands immediately.
-2. **Download & Immediate Staging (`crawler/bin/Dcrawler.py` + `crawler/bin/save_local.py`)**:
+2. **Download & Immediate Staging (`modules/crawler/Dcrawler.py` + `modules/download/save_local.py`)**:
    - `Dcrawler.py` downloads each PDF, normalizes it in memory with `qpdf`, classifies it via `classify_pdf()`, and saves it directly into its category directory under `--save`:
      - `<save>/convertable/<book>.pdf`
      - `<save>/scanned/<book>.pdf`
      - `<save>/old/<book>.pdf`
    - Downloading continues linearly without waiting for an end-of-run batch flush.
-3. **Background Per-Book Processing & Upload (`crawler/bin/save_remote.py` + `crawler/bin/text_collect.py`)**:
+3. **Background Per-Book Processing & Upload (`modules/download/save_remote.py` + `modules/result/text_collect.py`)**:
    - `RemoteUploader` polls `convertable/`, `scanned/`, and `old/` continuously (`POLL_INTERVAL = 2.0s`).
    - **For `convertable/` books**:
      1. Calls `process_convertable_pdf()`, which runs `classify_pdf()` + `segment_bridge.mjs` (`Engine`) and appends **1 row per book** (`book_id`, `author`, `text`, `syllables`) to `<parquet_dir>/part-NNNNN.parquet` on the VPS (rotating at 300 MB).
@@ -173,7 +173,7 @@ On legacy pre-Unicode PDFs without `/ToUnicode` or usable TrueType `cmap` (such 
 3. **Complete Legacy Vector/SVG Extraction Pipeline (`linga-vector`) and Wire Optional Recovery for `old/` PDFs**:
    - Port the two verified parser patches (`svg.mjs` nested-path loop fix and `ttf-cmap.mjs` format-4 `idRangeOffset` pointer arithmetic fix) and wire the PDF.js SVG outline extractor + 339-face `curve-witness.json` + `mm_score` arbitration into a standalone or post-processing recovery pass for `old/` PDFs that lack `/ToUnicode`.
 4. **Populate `author` Metadata Column in Parquet Output**:
-   - Currently `crawler/bin/text_collect.py` writes `author = ""` for every Parquet row. Extract author metadata from PDF `/Info` dictionaries, crawler page metadata, or title-page heuristics when available.
+   - Currently `modules/result/text_collect.py` writes `author = ""` for every Parquet row. Extract author metadata from PDF `/Info` dictionaries, crawler page metadata, or title-page heuristics when available.
 
 ---
 
@@ -189,13 +189,13 @@ On legacy pre-Unicode PDFs without `/ToUnicode` or usable TrueType `cmap` (such 
    - Rule-based Zawgyi-One <-> Unicode converter (`rabbit.py` + `map/zg2uni-rules.json`).
    - Canonical Burmese combining-mark priority sorter and visual/imposter cleanup (`cleanup.py` + `map/cleanup.json` + `map/mm-score.json`).
    - Structural broken-Burmese scanner (`scan.py` + `map/scan.json`) and legacy decoding legitimacy scorer (`mm_score.py`).
-2. **3-Way In-Memory PDF Classifier (`crawler/bin/pdf_classify.py`)**:
+2. **3-Way In-Memory PDF Classifier (`modules/result/pdf_classify.py`)**:
    - Whole-file image-byte ratio + 32-page sampled text extrapolation to separate `scanned` PDFs from text-bearing PDFs.
    - 3-rung decoding ladder (Identity probe -> Embedded TrueType `cmap` -> Per-font `/ToUnicode` + sidecar `cipher-map.json`) with structural coverage and `scan_text` validation separating `convertable` from `old`.
 3. **Engine Obfuscation, Bytecode Compilation & Node 22+ Segmentor Bridge**:
    - `Engine/MonoSyllabism/mapbuilder/obfuscator.js` obfuscates all four payload modules (`function.js`, `normalize.js`, `sourceMap.js`, `sourceMapper.js`) before compiling `payload.jsc` with Bytenode and encrypting `master.json.enc` with AES-256-GCM.
    - `wasm/box/build-payload.mjs` and `wasm/box/tools/obfuscate-loader.mjs` obfuscate both the payload bundle and loader before packing `wasm/box/box.wasm`.
-   - `crawler/bin/segment_bridge.mjs`, `deploy/engine_ready.py`, and `crawler/bin/text_collect.py` enforce and auto-discover Node.js 22+ across standard system, fnm, nvm, Volta, and NodeSource paths even under restricted systemd `PATH`.
+   - `support/segment_bridge.mjs`, `deploy/engine_ready.py`, and `modules/result/text_collect.py` enforce and auto-discover Node.js 22+ across standard system, fnm, nvm, Volta, and NodeSource paths even under restricted systemd `PATH`.
 4. **Linear Per-Book Download, Classification, Parquet & Remote Upload Workflow**:
    - `Dcrawler.py` classifies each downloaded PDF immediately and saves it to `<save>/{convertable,scanned,old}/`.
    - `RemoteUploader` (`save_remote.py`) watches all three category folders: for `convertable/` books it parses the PDF, segments syllables via `Engine`, appends 1 row (`book_id`, `author`, `text`, `syllables`) to local VPS Parquet (`books_parquet/part-NNNNN.parquet`), uploads the PDF to `<remote_path>/convertable/`, and removes the staged copy; for `scanned/` and `old/` books it uploads directly to remote storage.
@@ -211,7 +211,7 @@ On legacy pre-Unicode PDFs without `/ToUnicode` or usable TrueType `cmap` (such 
    - On branch/tag `linga-vector-eval-2026-10-14`, the vector/SVG evaluation established PDF.js native outline extraction, Letter-to-A4 scaling, and the rebuilt 339-face `curve-witness.json`, but its handoff status is **NOT GREEN**:
      - The two patches (`svg.mjs` nested contour loop fix and `ttf-cmap.mjs` format-4 `2 * segCount` offset fix) were shipped as patch files in `experiments/linga-vector/portable/patches/` rather than merged into the live parser.
      - Full 9-page extraction on `bms.pdf` with Unicode-labelled SVG candidates wired into cluster/line context and `scan.py` validation was not completed.
-     - `crawler/bin/pdf_classify.py` intentionally routes legacy non-Unicode/non-Zawgyi PDFs to `old/` without running vector outline recovery.
+     - `modules/result/pdf_classify.py` intentionally routes legacy non-Unicode/non-Zawgyi PDFs to `old/` without running vector outline recovery.
 2. **QuickJS Bytecode Compilation Inside `wasm/box/box.wasm`**:
    - While `Engine/MonoSyllabism/map/payload.jsc` compiles to native V8 bytecode, `wasm/box/box.wasm` currently encrypts obfuscated JavaScript source inside `linga.payload` because `shim.c` calls `JS_Eval` rather than `JS_ReadObject`.
 3. **In-Engine `master.json.enc` Synchronization for `ဥ် -> ဉ်`**:

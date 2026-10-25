@@ -39,7 +39,8 @@ from collections import Counter
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT / "crawler" / "bin"))
+sys.path.insert(0, str(ROOT))
+import bootstrap  # noqa: E402,F401
 
 # _run is the same ssh wrapper save_remote.py uses - same key handling, same
 # BatchMode/ControlMaster options - so this connects exactly like an upload does.

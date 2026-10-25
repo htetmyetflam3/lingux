@@ -7,7 +7,7 @@
     uv run hfinit.py --download pulled           ...and back down again, the round trip
 
 Local paths are relative to the current directory. `pdfs/parquet` is not a guess: it is
-where crawler/bin/text_collect.py writes, now that REPO_ROOT resolves to the repository
+where modules/result/text_collect.py writes, now that REPO_ROOT resolves to the repository
 root in every module instead of `crawler/` in seven of them. Not recursive, and dot-files
 are skipped, so the ".books.parquet.tmp" half-write is never picked up mid-commit.
 
@@ -250,7 +250,7 @@ def local_files(raw: str) -> tuple[Path, list[Path]]:
     """Resolve the argument to (base, files). Repo paths are relative to base.
 
     Not recursive: the collection is ONE parquet, pdfs/parquet/books.parquet, written by
-    crawler/bin/text_collect.py. Dot-files are skipped so the ".books.parquet.tmp"
+    modules/result/text_collect.py. Dot-files are skipped so the ".books.parquet.tmp"
     half-write is never picked up mid-commit.
     """
     path = Path(raw)
@@ -282,7 +282,7 @@ def row_count(path: Path) -> int | None:
 def source_compression(path: Path) -> dict:
     """The codec this parquet was written with, so a CDC rewrite does not change it.
 
-    crawler/bin/text_collect.py writes compression="zstd", compression_level=19 on
+    modules/result/text_collect.py writes compression="zstd", compression_level=19 on
     purpose - measured ~40% smaller than pyarrow's default on segmented Burmese text.
     The level is not recorded inside the file, so the pipeline's own value is reused.
     Without this, rewriting for CDC silently fell back to snappy: a 10,487-byte batch

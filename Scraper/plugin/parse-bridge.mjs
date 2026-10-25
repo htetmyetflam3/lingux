@@ -7,7 +7,7 @@
 //     scraper caller  ->  Unicode / ZawCode parse, OCR, or old-font SKIP.
 //
 // This file holds none of that logic. It is the process/IO adapter the
-// Python crawler shells (the same transport as crawler/bin/segment_bridge.mjs):
+// Python crawler shells (the same transport as support/segment_bridge.mjs):
 // one Node process for a batch, cross-module dynamic import, JSON verdict out.
 // It translates the Manager's generic result into the three-category
 // vocabulary the scraper pipeline already understands (pdf_classify.py):

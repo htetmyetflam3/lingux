@@ -18,8 +18,9 @@ _systemd_status = launch_under_systemd(sys.argv[1:])
 if _systemd_status is not None:
     raise SystemExit(_systemd_status)
 
-BIN_DIR = ROOT / "crawler" / "bin"
-sys.path.insert(0, str(BIN_DIR))
+# Responsibility-shaped modules/ + support/ tree; bootstrap puts every module
+# directory on sys.path for the flat sibling imports.
+import bootstrap  # noqa: E402,F401
 
 from Dcrawler import ENTRY_FILE, OUTPUT_DIR, download_entries, note_pause, retry_line  # noqa: E402
 from disk_floor import DiskTight  # noqa: E402
@@ -75,7 +76,7 @@ right away, with the problems so far.
 
 upload (--upload, --process): a file that fails is retried after 15 s, 30 s,
 45 s, 1 min, 1 min 30 s, 2 min, 2 min 30 s and 3 min (UPLOAD_WAITS in
-crawler/bin/save_remote.py); then uploading stops instead of looping: with an
+modules/download/save_remote.py); then uploading stops instead of looping: with an
 error when under 5 GB is free, else the files stay in pdfs.
 
 disk: 5 GB is kept free for the system. Every download command (--main,
