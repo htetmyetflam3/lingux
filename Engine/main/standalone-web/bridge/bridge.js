@@ -1,20 +1,19 @@
-// Engine Bridge entry — temporary home inside the standalone-web plugin's
-// bridge/ dir, mirroring the future Engine/main/Bridge/ layout.
+// Engine Bridge internals — routine selection for the sole public entry
+// BindEngine in ./bind-engine.js.
 //
-// The real Engine/main/Bridge (path.js / logen.js / Ginit.js plus this entry)
-// is built later; this file is the entry that will merge into it. The plugin
-// is a small, removable directory, so nothing here edits engine-core files.
-// When the real Bridge lands this moves verbatim into Engine/main/Bridge/.
+// This module deliberately exports NO callable entry of its own: callers
+// import BindEngine (the WASM-shaped single entry) and the signature string
+// decides everything here. Reaching around BindEngine into these handlers
+// corrupts the boundary design. This file moves verbatim into the future
+// Engine/main/Bridge/ together with bind-engine.js.
 //
-// Caller routing — every call carries `signature`, the field that tells the
-// bridge WHO is calling, plus that caller's own fields:
+// Caller routing — the signature BindEngine receives selects the routine:
 //
-//   { signature: 'public',       hash, ... } -> path B, syllable-only segmenting
-//   { signature: 'scraper',      hash, ... } -> path B, syllable-only segmenting
-//   { signature: 'site',         ...job     } -> path A (full), RESERVED
-//   { signature: 'proofreading', ...        } -> path A, bridge() two-file form
-//   { signature: 'debugger',     ...        } -> path A, bridgeDebug() five-file
-//                                                debug form (hardcoded, no flags)
+//   'public'       -> path B, syllable-only segmenting
+//   'scraper'      -> path B, syllable-only segmenting
+//   'site'         -> path A (full), RESERVED — quiet string refusal
+//   'proofreading' -> path A, bridge() two-file form
+//   'debugger'     -> path A, bridgeDebug() five-file debug form
 //
 // The engine routines live in Engine/main/init/bridge.js:
 //   path B  bridgeSyllable()  normalize -> runSegmentor -> syllable writer.
@@ -27,31 +26,24 @@
 //           (syllable, raw_pos, ids, id_mapper, id_merged) for the debugger
 //           caller only — a rare-event mapping safety net, never a daily run.
 //           site's if-condition is still deferred, so it stays an explicit
-//           501 stub rather than silently taking the wrong routine.
+//           refusal rather than silently taking the wrong routine.
 //
-// STAGE OF THIS FILE: pre-routine sketch only. Input shapes, metadata
-// contracts, read-back modes and engine sync/queueing are on the standalone-web
-// revisit list — handlers only select the routine and await it.
+// Throws are plain strings, quiet by contract: BindEngine owns the boundary
+// and the express layer turns them into refusal responses.
 //
-// Adding a caller means adding one handler — nothing else changes.
+// STAGE: pre-routine sketch. Input shapes, metadata contracts, read-back
+// modes and engine sync/readiness are on the standalone-web revisit list —
+// handlers only select the routine and await it.
 
 // PLACEHOLDER: real specifier is Engine/main/init/bridge.js; kept named this
 // way until the Engine/main/Bridge shims (path/logen/Ginit) resolve, matching
 // the placeholder convention already used in engine-runner.mjs.
 const ENGINE_BRIDGE = './placeholderFor-Engine-main-init-bridge.js';
 
-export class BridgeError extends Error {
-  constructor(message, status = 400) {
-    super(message);
-    this.name = 'BridgeError';
-    this.status = status;
-  }
-}
-
 /* ── Path B: syllable-only pre-routine (3-line sketch) ─────────────────────
-   The segmentor generator and writeFlags/hash/inputPath argument shape are
-   finalised with the metadata revisit; bridgeSyllable already owns the
-   normalize -> runSegmentor -> writer assembly internally. */
+   The segmentor generator and hash/inputPath argument shape are finalised
+   with the metadata revisit; bridgeSyllable already owns the normalize ->
+   runSegmentor -> writer assembly internally. */
 async function pathBSyllable(fields = {}) {
   const { bridgeSyllable } = await import(ENGINE_BRIDGE);
   return bridgeSyllable(fields.seg, { syllable: true }, fields.hash, fields.inputPath);
@@ -78,10 +70,12 @@ async function pathADebug(fields = {}) {
 
 /* site's if-condition is still deferred: refuse rather than guess a routine. */
 async function pathAReserved(_fields = {}) {
-  throw new BridgeError('path A (full tagger/kernel routine) is reserved for site and not wired yet', 501);
+  throw 'bridge: site path A routine is not wired yet';
 }
 
-const handlers = {
+// Internal dispatch table — BindEngine is the only importer. Adding a caller
+// means adding one handler here, nothing else changes.
+export const handlers = Object.freeze({
   // Rate-limited public tokenizer API: segmenting only, so it always takes B.
   public: (fields) => pathBSyllable(fields),
   // Local library caller (scraper): same syllable-only guarantee, same path.
@@ -92,34 +86,14 @@ const handlers = {
   proofreading: (fields) => pathAFull(fields),
   // Rare-event mapping inspection: five-file debug form, same kernel.
   debugger: (fields) => pathADebug(fields),
-};
+});
 
-// Which engine routine each signature is contracted to. Exported so callers
-// and tests can assert routing without invoking a placeholder import.
-// Both path-A entries share the kernel chain; proofreading writes two files,
-// debugger writes the five hardcoded debug outputs.
-export const CALLER_PATHS = Object.freeze({
+// Which engine routine each signature is contracted to. Internal contract
+// table for readability; not exported — BindEngine is the only public entry.
+const CALLER_PATHS = Object.freeze({
   public: 'B',
   scraper: 'B',
   site: 'A',
   proofreading: 'A',
   debugger: 'A',
 });
-
-/**
- * Single bridge entry point. Callers pass their signature + fields and await
- * the result; read-back happens inside the selected routine.
- */
-export async function bridgeInvoke({ hash, signature, ...fields } = {}) {
-  if (typeof hash !== 'string' || !hash) {
-    throw new BridgeError('bridge: hash is required');
-  }
-  if (typeof signature !== 'string' || !signature) {
-    throw new BridgeError('bridge: signature is required');
-  }
-  const handler = handlers[signature];
-  if (!handler) {
-    throw new BridgeError(`bridge: unknown signature '${signature}'`, 404);
-  }
-  return handler({ hash, ...fields });
-}

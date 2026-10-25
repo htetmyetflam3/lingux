@@ -9,8 +9,9 @@
 //
 //   guardedApi (standard rate limit)     /tokenizer/...
 //     Handle-based read-back, valid only inside the session that minted it.
-//     Each request hands { hash, signature: 'public', mode } to the engine
-//     Bridge and awaits the readback in the SAME HTTP response:
+//     Each request calls the single BindEngine entry with the 'public'
+//     signature string and { hash, mode }, and awaits the readback in the
+//     SAME HTTP response:
 //       GET    /tokenizer                 handles owned by this session
 //       GET    /tokenizer/:handle         handle metadata
 //       GET    /tokenizer/:handle/raw      bridge mode 'raw' (tagged text)
@@ -23,7 +24,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { config } from './config.mjs';
 import { createRateLimiter } from './rate-limit.mjs';
-import { bridgeInvoke, BridgeError } from './bridge/bridge.js';
+import { BindEngine } from './bridge/bind-engine.js';
 
 // The signature stamped on every call this API makes into the Bridge. The
 // Bridge routes on this field; Site calls will carry signature 'site' plus
@@ -123,9 +124,8 @@ guardedApi.get('/tokenizer/:handle/raw', async (req, res, next) => {
   try {
     const entry = lookupHandle(req, res);
     if (!entry) return;
-    const result = await bridgeInvoke({
+    const result = await BindEngine(entry.signature, {
       hash: entry.engineHash,
-      signature: entry.signature,
       mode: 'raw',
     });
     return res.status(200).json({
@@ -145,9 +145,8 @@ guardedApi.get('/tokenizer/:handle/syllable', async (req, res, next) => {
   try {
     const entry = lookupHandle(req, res);
     if (!entry) return;
-    const result = await bridgeInvoke({
+    const result = await BindEngine(entry.signature, {
       hash: entry.engineHash,
-      signature: entry.signature,
       mode: 'syllable',
     });
     return res.status(200).json({
@@ -176,11 +175,14 @@ guardedApi.delete('/tokenizer/:handle', (req, res) => {
 publicRouter.use(handshakeRouter);
 publicRouter.use(guardedApi);
 
-// Bridge rejections carry their own status; engine seam failures (missing
-// Bridge, missing output file) are 503/404, never a 200 with empty data.
+// Boundary failures arrive as quiet plain strings from BindEngine: at this
+// layer they are REFUSALS of the request, never a stop of the web process.
+// Engine seam failures (missing Bridge, missing output file) are 503/404,
+// never a 200 with empty data.
 publicRouter.use((err, _req, res, _next) => {
-  if (err instanceof BridgeError) {
-    return res.status(err.status).json({ error: err.message });
+  if (typeof err === 'string') {
+    const status = err.includes('not wired') ? 501 : 400;
+    return res.status(status).json({ error: err });
   }
   if (err?.code === 'ERR_MODULE_NOT_FOUND' || err?.code === 'MODULE_NOT_FOUND') {
     return res.status(503).json({ error: 'tokenizer engine seam not wired (engine modules not copied into the plugin yet)' });
