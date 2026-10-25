@@ -18,10 +18,10 @@ from pathlib import Path
 
 from disk_floor import check_disk
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 SCAN_DIR = REPO_ROOT / "scan"
 SCRIBD_LINKS_FILE = SCAN_DIR / "scribd.txt"
-EXPORTER = REPO_ROOT / "crawler" / "scribdl" / "scribd-downloader.py"
+EXPORTER = REPO_ROOT / "modules" / "platform" / "scribdl" / "scribd-downloader.py"
 PDF_DIR = REPO_ROOT / "pdfs"
 
 

@@ -365,7 +365,7 @@ def report_message(
 # [mail]/[mail-warn] line is gone the moment the terminal closes, and
 # "the finished email never arrived and there is no trace" is exactly the
 # question the timeline exists to answer. Best-effort, like mail itself.
-_SCAN_DIR = __import__("pathlib").Path(__file__).resolve().parent.parent.parent / "scan"
+_SCAN_DIR = __import__("pathlib").Path(__file__).resolve().parent.parent / "scan"
 
 
 def _mail_log(line: str) -> None:

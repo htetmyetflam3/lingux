@@ -11,11 +11,11 @@
     "deploy/engine_ready.py": "44576dda86bcee8b07b56e7b37fc8be70789e15bbaffdf17de0dfa6f731f9052"
   },
   "files": {
-    "ocr.py": "88a3fb4beda3086111071247890089e7252e0256608f84386bbcad7a5f54e679",
-    "deploy/continuous-ocr/OCR-VERIFICATION.md": "85269c4834a0266e7df7816e46818661e11f89d03da86e7018145189a5ab6a34",
-    "deploy/continuous-ocr/README.md": "6e5f342d35fe958306fe95ef4e42dbf7d2458dfea9111be38db4c9059b8da12e",
-    "deploy/continuous-ocr/install.py": "99157c2d7c6b8261b36b2adb6cca9588127fb317130c3dc476907bbb9707dcd6",
-    "deploy/continuous-ocr/run.py": "e43d264cd724e146c2628343ec6b0b51bb0ca0cb9ef80b24892d12561433a1d0",
+    "ocr.py": "a95c46f4440f3cd4467e99f6765570391c735edd51d776573923359ad79a1e70",
+    "deploy/continuous-ocr/OCR-VERIFICATION.md": "66b6fdabea8d6606bc002592ad7e57b68ea95c74aa2672c8a0543c5fe98a8b2a",
+    "deploy/continuous-ocr/README.md": "5a71c010b0487b55aed0fd85f8a71c00fbdf23ac471c1c7c12be8a23d1c10439",
+    "deploy/continuous-ocr/install.py": "97d14cb79e580766b6657049930c2c404795cf71d1aeb298e33cb24c56a192c0",
+    "deploy/continuous-ocr/run.py": "5158b3bf0e7ae361a0f5480c69341b6a3818a3ee50573371949baa54adb91ccd",
     "deploy/continuous-ocr/worker.mjs": "4593924fba3b41b0ec9cbeb3aee34ef827b9e0cc415d1559b44ed3409ab977c9",
     "ocr_runtime/Praser/parser/package.json": "2c0f4337c7ddbdc277b2891def4e323aa6689fa840b6bb924723eb5fea5c026a",
     "ocr_runtime/Praser/parser/package-lock.json": "96384029a0b2d3c2742078f680d97692b9ad6af553dd0ea33cd9afeeee1ca6a8",
@@ -50,8 +50,8 @@
     "ocr_runtime/Praser/parser/map/vector/shape-alias.json": "78827f69da2844efd233519cb801ebdeb3ee2b8ffcb7d77b33bd36e05365c4de",
     "ocr_runtime/Praser/parser/map/vector/shape-overrides.json": "8333e6e881236d07bc25bf9fce818aaf87713098aa8e31026533036935e02e8b",
     "ocr_runtime/Praser/parser/map/vector/shape-thresholds.json": "8a160405676321a87299719975e38e188d752167f6242b5e217996dbb390df91",
-    "OCR-INSTALL.md": "3dc694727e2c146f048755679239cd840b4544c79f6c935e90746518d1902a33",
-    "OCR-VERIFICATION.md": "85269c4834a0266e7df7816e46818661e11f89d03da86e7018145189a5ab6a34",
+    "OCR-INSTALL.md": "9a9186fa84b5f38dd7a2867ce482e3fdb3ff65b905015449e97beab34347eb11",
+    "OCR-VERIFICATION.md": "66b6fdabea8d6606bc002592ad7e57b68ea95c74aa2672c8a0543c5fe98a8b2a",
     "secure.js": "bea2ee49f277dfd053f1cdf75ac4da326c89707d2d9f063cd80c3fd036dedd56",
     "master.json.enc": "85a9130aa806f306e4ac0d6530f5ce0e1768e22aeb58f21f29232ec387839c1e"
   },
@@ -235,5 +235,5 @@
     }
   },
   "hashes_recomputed_at": "ddf9a4195932a92d759d2b3dbca422f02b575b74",
-  "hashes_recomputed_note": "Repackaged master door: parser/model/secure.js and parser/model/master.json.enc were deleted. The single repo-root secure.js + master.json.enc install at the Scraper/main deploy root and require MASTER_JSON_KEY in a .env beside them; secure.js self-loads it and maintains its sealed master.json.cache. scan.mjs repinned after switching its import and default dictionary to that door. Overlay must be rebuilt and re-verified."
+  "hashes_recomputed_note": "Repinned on the owner-shaped tree: crawler modules moved from flat crawler/bin into modules/ + support/ (see commit b24ef01), entrypoints now import bootstrap.py, and the sealed master door moved to the repo root (secure.js + master.json.enc + root .env). install.py/run.py pins had already drifted at the merge base and are repinned to the current sources. ocr_runtime/ overlay-only entries retain their upstream hashes; the overlay bundle must be rebuilt and re-verified on the VPS before deploy."
 }
