@@ -1,11 +1,18 @@
 PAUSE ENTRIES — two paused tasks. Plain text on purpose (no .md).
-Last updated: 2026-10-24. Everything below verified on disk, not assumed.
+Last updated: 2026-10-25. Everything below verified on disk, not assumed.
+
+NOTE (2026-10-25): all plugin material now lives under the top-level
+plugin/ directory — plugin/standalone-web (live, incl. bridge/BindEngine),
+plugin/proofreading (scratch wrapper), plugin/standalone-web-legacy-draft
+(the superseded early draft, kept not deleted). Nothing lives under
+Engine/plugin anymore; that dir is gone. Engine/main holds engine code only.
 
 =====================================================================
 PAUSE 1 — Proofreading engine-plugin extraction (the older task)
 =====================================================================
 Goal: proofreading's engine entry points move out of Proofreading into
-Engine/plugin; the Python child-process wrapper stays in Proofreading.
+the top-level plugin/ dir; the Python child-process wrapper stays in
+Proofreading.
 
 DONE:
 - Deleted Proofreading/main/mt/rebuild_tree.mjs (zero callers; tree is now
@@ -14,7 +21,7 @@ DONE:
   duplicate of the native syllable-only path = bridgeSyllable /
   runMain({writePos:false})).
 - Thin wrapper drafted (scratch, placeholder imports, not wired/run):
-    Engine/plugin/proofreading/proofreading-tag.mjs
+    plugin/proofreading/proofreading-tag.mjs
     Bridge/proofreading-tagger.mjs  (adapter toward native tagger)
 
 STILL UNTOUCHED, awaiting decision:
@@ -72,8 +79,8 @@ the top-level dirs stop moving:
     ./placeholderFor-Bridge-path.js   (merged Bridge/path.js, OutputFile)
     ./placeholderFor-Bridge-logen.js  (merged Bridge/logen.js, log fns + getDateTimeHash)
     ./placeholderFor-Bridge-Ginit.js  (merged Bridge/Ginit.js, runRuleEngine)
-- Engine/plugin/standalone-web/engine-runner.mjs:
+- plugin/standalone-web/engine-runner.mjs:
     ./placeholderFor-Engine-main-native-tagger.js (real: init/cli.js + init/initS.js)
-- Engine/plugin/standalone-web/config.mjs: SITE_QUEUE_URL is deploy-time input.
+- plugin/standalone-web/config.mjs: SITE_QUEUE_URL is deploy-time input.
 Merged top-level Bridge/ now holds: Ginit.js, api-server.js, bridge.js(removed),
 flags.js, index.js, logen.js, path.js, proofreading-tagger.mjs.
