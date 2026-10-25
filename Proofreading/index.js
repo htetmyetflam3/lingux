@@ -10,6 +10,7 @@ export {
   readFileContent,
   getDateTimeHash,
   hashKind,
+  cacheInfo,
   configureWorkspace,
 } from '../Bridge/path.js';
 export { tagProofreading } from '../Bridge/proofreading-tagger.mjs';

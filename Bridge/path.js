@@ -14,5 +14,6 @@ export {
   readFileContent,
   getDateTimeHash,
   hashKind,
+  cacheInfo,
   configureWorkspace,
 } from '../Engine/index.js';

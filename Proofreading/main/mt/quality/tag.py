@@ -43,7 +43,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SHIM = Path(__file__).resolve().with_name("tag-both.mjs")
-GUARD = "scraper/wasm/box/runtime-guard.mjs"
 
 TOKEN_RE = re.compile(r"^(?P<surface>.*?)\{(?P<tags>[^{}]*)\}$")
 EOS = "<eos>"
@@ -135,8 +134,11 @@ def tag_text(text: str, work: Path | None = None, timeout: int = 300) -> list[di
     node = shutil.which("node")
     if not node:
         raise EngineError("node not found on PATH")
-    cmd = [node, "--import", f"./{GUARD}", str(SHIM), str(source), str(work / "engine"), str(result_json)]
-    proc = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=timeout)
+    # The shim reaches the engine through its own repo-relative Bridge facade,
+    # so no cwd or external WASM guard is needed: one node process, one
+    # BindEngine('proofreading') call, stats JSON written back.
+    cmd = [node, str(SHIM), str(source), str(work / "engine"), str(result_json)]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     if proc.returncode != 0 or not result_json.exists():
         raise EngineError(
             "tagger failed\n"

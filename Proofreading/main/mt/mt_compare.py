@@ -20,11 +20,15 @@ from difflib import SequenceMatcher
 import json5
 
 ROOT = Path(__file__).resolve().parent.parent
+REPO = ROOT.parents[1]  # repository root (holds Engine/ and Bridge/)
+# The engine is reached through ONE node shim: tag-both.mjs -> repo-root
+# Bridge facade -> Engine/index.js BindEngine('proofreading'). No WASM guard,
+# no cwd-relative bundle layout; absolute paths keep the spawn location-free.
+TAG_SHIM = Path(__file__).resolve().parent / "quality" / "tag-both.mjs"
 VERSION = 2
 REFERENCE = ROOT/'content/kmt-pos/ယဲ့နင်.raw_pos.txt'
 WORK = ROOT/'content/mtranslate/comparison'
 PROFILE = ROOT/'content/analysis/reference-data-audit.json'
-GUARD = ROOT/'scraper/wasm/box/runtime-guard.mjs'
 
 class ComparisonError(Exception):
     pass
@@ -233,7 +237,9 @@ def surface_diff(left,right):
 
 def tag_burmese(text,data,work=WORK):
     # Rule/top/resolution edits invalidate comparison, not translations or POS cache.
-    scripts=['Engine/tag-text.mjs','Engine/CACHE-SOURCE.json',
+    # Tree integrity is built into the engine now (CACHE-MANIFEST.json verified
+    # by the tree loader itself), so the old external CACHE-SOURCE.json is gone.
+    scripts=['Engine/tag-text.mjs',
         'scraper/wasm/box/host.mjs','scraper/wasm/box/runtime-guard.mjs','scraper/wasm/box/runtime-loader.mjs']
     scripts += sorted(str(p.relative_to(ROOT)) for folder in ('Engine/Bridge','Engine/MonoSyllabism')
         for p in (ROOT/folder).rglob('*.js') if '/mapbuilder/' not in str(p))

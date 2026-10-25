@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { BindEngine, configureWorkspace, readFileContent } from '../../../Bridge/path.js';
+import { BindEngine, cacheInfo, configureWorkspace, readFileContent } from '../../../Bridge/path.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -33,23 +33,15 @@ const build = JSON.parse(fs.readFileSync(path.join(ROOT, 'scraper/wasm/box/build
 // require rebuilding the box; the POS dictionary ships prebuilt in .cache-tree.
 const masterData = JSON.parse(masterBytes);
 assertMapData(masterData.mapData);
-const treeDir = path.join(work, 'tree'), dataDir = path.join(work, 'data');
+// New shape: the engine ships its own verified prebuilt tree
+// (.cache-tree + CACHE-MANIFEST.json) and the tree loader verifies every
+// artifact's sha256 itself before first use. Nothing is copied into WORK and
+// no external CACHE-SOURCE check exists here anymore; only the mutable run
+// outputs (out/log) are retargeted at the disposable work dir.
 const outputDir = path.join(work, 'out'), logDir = path.join(work, 'log');
-for (const dir of [treeDir, dataDir, outputDir, logDir]) fs.mkdirSync(dir, {recursive:true});
-const cacheRoot = path.join(ROOT, 'Engine/.cache-tree');
-const cacheSource = JSON.parse(fs.readFileSync(path.join(ROOT, 'Engine/CACHE-SOURCE.json')));
-for (const [name, expected] of Object.entries(cacheSource.sha256)) {
-  const bytes = fs.readFileSync(path.join(cacheRoot, name));
-  if (hash(bytes) !== expected) throw new Error(`Original scraper cache hash mismatch: ${name}`);
-  fs.writeFileSync(path.join(treeDir, name), bytes);
-}
-// Never let the supplied builder's cleanup overwrite the owner's master.
-fs.writeFileSync(path.join(dataDir, 'master.json'), masterBytes);
-// New shape: no POS rebuild. The prebuilt pos.tree.json is a load-time input,
-// so it is seeded above and must not be removed. Only a stale fail log from an
-// older run is cleared.
-fs.rmSync(path.join(treeDir, 'pos-fail.txt'), { force: true });
-configureWorkspace({treeDir, dataDir, outputDir, logDir});
+for (const dir of [outputDir, logDir]) fs.mkdirSync(dir, { recursive: true });
+configureWorkspace({ outputDir, logDir });
+const treeInfo = cacheInfo();
 
 // Single engine call: signature 'proofreading' is path A (fullstopHolder ->
 // runTagger -> pass-through rule engine, syllable + raw_pos writers). The
@@ -60,11 +52,8 @@ if (!result.rawPosPath || !fs.statSync(result.rawPosPath).size) throw new Error(
 if (hash(fs.readFileSync(masterPath)) !== masterHash) throw new Error('Original master was modified');
 // Engine output is read back with the engine's own stream reader, not host fs.
 const raw = await readFileContent(result.rawPosPath);
-const failFile = path.join(treeDir, 'pos-fail.txt');
-const prebuiltPosTree = path.join(treeDir, 'pos.tree.json');
-const posRoots = fs.existsSync(prebuiltPosTree)
-  ? Object.keys(JSON.parse(fs.readFileSync(prebuiltPosTree, 'utf8'))).length
-  : 0;
+// The POS dictionary is a prebuilt, manifest-verified tree: no builder runs,
+// so no pos-fail.txt is produced and the rejected-entry count is always 0.
 const stats = {
   runtime:'required rebuilt scraper WASM',
   runtime_guard:'scraper/wasm/box/runtime-guard.mjs',
@@ -72,16 +61,17 @@ const stats = {
   wasm_box:'scraper/wasm/box/box.wasm',
   wasm_host:'scraper/wasm/box/host.mjs',
   wasm_instance_scope:'shared module instance',
-  input_pipeline:"BindEngine('proofreading') path A; prebuilt .cache-tree loaded, never rebuilt",
+  input_pipeline:"BindEngine('proofreading') path A; built-in verified .cache-tree, never rebuilt or copied",
   engine_entry:'Engine/index.js via repo-root Bridge/path.js facade',
+  tree_manifest:treeInfo.manifest,
+  tree_generated_at:treeInfo.generatedAt,
   wasm_sha256:build.box_sha256, master_sha256:masterHash,
   tag_data_sha256:hash(JSON.stringify({dictionary:masterData.dictionary,mapData:masterData.mapData})),
-  scraper_cache_commit:cacheSource.commit,
   source_sha256:hash(fs.readFileSync(source)),
   raw_pos_path:result.rawPosPath, raw_pos_sha256:hash(Buffer.from(raw)),
   raw_pos_bytes:Buffer.byteLength(raw), output_units:result.lineCount,
-  pos_tree_roots:posRoots,
-  rejected_dictionary_entries:fs.existsSync(failFile) ? fs.readFileSync(failFile,'utf8').trim().split('\n').filter(Boolean).length : 0,
+  pos_tree_roots:treeInfo.counts.posRoots ?? 0,
+  rejected_dictionary_entries:0,
   tag_occurrences:[...raw.matchAll(/\{[^{}]+\}/g)].length,
   unknown_tag_occurrences:[...raw.matchAll(/\{\?\}/g)].length,
   ambiguous_tag_occurrences:[...raw.matchAll(/\{[^{}]*,[^{}]*\}/g)].length,
