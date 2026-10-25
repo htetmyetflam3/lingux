@@ -9,7 +9,7 @@ import {
   MAX_OCR_PAGES,
   ocrTimeoutMs,
 } from "./core/limits.mjs";
-import { decideForCaller, normalizeCaller } from "./caller-policy.mjs";
+import { decideForCaller, normalizeCaller } from "../../extend/caller-policy.mjs";
 import { classifyScraperSource } from "./codepage/classify.mjs";
 
 const EXTRACT_URL = new URL("./worker/extract.entry.mjs", import.meta.url); 

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { loadDetector, processBytesForMethod, buildFinalPages, markPdfImagePages } from "../pipeline.mjs";
+import { loadDetector, processBytesForMethod, buildFinalPages, markPdfImagePages } from "../../../extend/pipeline.mjs";
 import { writeOutput } from "../write/emit.mjs";
 import { scanText, formatScanReport, loadScanDictionary, dictionaryWords } from "../text/scan.mjs";
 import { repairText, repairFromScanVerdict } from "../text/repair.mjs";

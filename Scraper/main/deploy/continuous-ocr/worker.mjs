@@ -1,14 +1,14 @@
 // Persistent OCR/model/reference assets. No overall/book/page timeout.
 import fs from 'node:fs';
 import readline from 'node:readline';
-import { openPdf, renderPageCanvas, cropCanvasRgba } from '../../ocr_runtime/Praser/parser/read/pdf-render.mjs';
-import { initOcr, ocrImageDetailed, closeOcr } from '../../ocr_runtime/Praser/parser/read/ocr.mjs';
-import { getDefaultVectorIndex } from '../../ocr_runtime/Praser/parser/shape/match.mjs';
-import { matchPixelsToVector } from '../../ocr_runtime/Praser/parser/codepage/vote.mjs';
-import { loadScanDictionary, dictionaryWords, scanBrokenSpans } from '../../ocr_runtime/Praser/parser/text/scan.mjs';
-import { repairText, HOMOGLYPH_PAIRS } from '../../ocr_runtime/Praser/parser/text/repair.mjs';
+import { openPdf, renderPageCanvas, cropCanvasRgba } from '../../../../Parser/main/parser/read/pdf-render.mjs';
+import { initOcr, ocrImageDetailed, closeOcr } from '../../../../Parser/main/parser/read/ocr.mjs';
+import { getDefaultVectorIndex } from '../../../../Parser/main/parser/shape/match.mjs';
+import { matchPixelsToVector } from '../../../../Parser/main/parser/codepage/vote.mjs';
+import { loadScanDictionary, dictionaryWords, scanBrokenSpans } from '../../../../Parser/main/parser/text/scan.mjs';
+import { repairText, HOMOGLYPH_PAIRS } from '../../../../Parser/main/parser/text/repair.mjs';
 import { normalizeText } from '../../ocr_runtime/Praser/parser/text/normalize.mjs';
-import { MAX_OCR_PIXELS } from '../../ocr_runtime/Praser/parser/core/limits.mjs';
+import { MAX_OCR_PIXELS } from '../../../../Parser/main/parser/core/limits.mjs';
 
 const reply = (v) => process.stdout.write('OCR_RESULT ' + JSON.stringify(v) + '\n');
 const data = loadScanDictionary();
