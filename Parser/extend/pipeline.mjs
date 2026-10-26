@@ -8,7 +8,7 @@ import { findModelPath } from "../main/parser/core/paths.mjs";
 import { ZawgyiDetector } from "../main/parser/text/detector.mjs";
 import { decryptPdf, isEncryptedPdf, hasObjectStreams, expandObjectStreams } from "../main/parser/read/decrypt.mjs";
 import { Rabbit } from "../main/parser/text/rabbit.mjs";
-import { cleanupText, orderText } from "./text/normalize.mjs";
+import { cleanupText, orderText } from "../main/parser/text/normalize.mjs";
 import { extractDocxParagraphs, extractDocxImages, validateDocxArchive } from "../main/parser/read/docx-extract.mjs";
 import { extractDocxParagraphsExternal } from "../main/parser/read/docx-external.mjs";
 import { scoreText } from "../main/parser/text/mm-score.mjs";
@@ -25,7 +25,7 @@ import {
 import { LEGACY_CODE_PAGES, UNICODE_PATH, ZawCODE_PATH } from "../main/parser/codepage/registry.mjs";
 import { zawCodeGuard } from "../main/parser/text/repair.mjs";
 import { loadScanDictionary, dictionaryWords } from "../main/parser/text/scan.mjs";
-import { writeDocxLayout, writePdf } from "./write/render.mjs";
+import { writeDocxLayout, writePdf } from "../main/parser/write/render.mjs";
 import { chooseCodePage, prepareVectorLayout, LEGACY_QUALITY_FLOOR } from "../main/parser/codepage/resolve.mjs";
 import { buildVectorRepair } from "../main/parser/codepage/vector-repair.mjs";
 

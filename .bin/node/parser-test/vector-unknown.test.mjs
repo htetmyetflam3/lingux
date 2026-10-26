@@ -13,7 +13,7 @@ import { buildVectorOutlineLayout } from "../../../Parser/main/parser/codepage/v
 import {
   loadDetector,
   streamPdfPages,
-} from "../../../Parser/main/parser/pipeline.mjs";
+} from "../../../Parser/extend/pipeline.mjs";
 import { prepareVectorLayout } from "../../../Parser/main/parser/codepage/resolve.mjs";
 
 /**

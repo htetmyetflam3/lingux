@@ -11,7 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { readMasterText } from "../../../../secure.js";
+import { readMasterText } from "../../../../.data/secure.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // map/ -> MonoSyllabism/ -> architecture/ (the engine root path.js anchors)

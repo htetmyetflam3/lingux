@@ -5,7 +5,7 @@ import {
   isLegacyFontPath,
   isVectorLayoutPath,
   normalizeCaller,
-} from "../../../Parser/main/parser/caller-policy.mjs";
+} from "../../../Parser/extend/caller-policy.mjs";
 
 test("site caller parses every measured path, including old fonts", () => {
   for (const encodingPath of ["unicode", "zawcode", "wininnwa", "ayar", "SomeVectorFont"]) {

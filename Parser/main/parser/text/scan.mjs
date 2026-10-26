@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { readSecureJson, readMasterJson } from "../../../../secure.js";
+import { readSecureJson, readMasterJson } from "../../../../.data/secure.js";
 import { MAP_DIR } from "../core/paths.mjs";
 import { MARKS as MM_MARKS } from "./mm-score.mjs";
 

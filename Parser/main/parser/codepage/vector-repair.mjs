@@ -57,7 +57,7 @@ import { emitEvent } from "../../../../Bridge/logen/core.js";
 
 const WITNESS_FILE = path.join(
   path.dirname(new URL(import.meta.url).pathname),
-  "..", "map", "vector", "font-witnesses.json",
+  "..", "jason-map", "vector", "font-witnesses.json",
 );
 
 /** U+103C ြ, U+103B ျ, U+103D ွ, U+103E ှ -- the four medials. */

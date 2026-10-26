@@ -13,7 +13,7 @@
 //
 // Or pass a full job object as a single JSON argv token.
 import path from "node:path";
-import { Manager } from "./manager.mjs";
+import { Manager } from "../main/parser/manager.mjs";
 import { DEFAULT_OUTPUT_DIR } from "../main/parser/core/paths.mjs";
 
 function parseArgs(argv) {

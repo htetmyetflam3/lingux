@@ -7,7 +7,7 @@ import { getDefaultVectorIndex } from '../../../../Parser/main/parser/shape/matc
 import { matchPixelsToVector } from '../../../../Parser/main/parser/codepage/vote.mjs';
 import { loadScanDictionary, dictionaryWords, scanBrokenSpans } from '../../../../Parser/main/parser/text/scan.mjs';
 import { repairText, HOMOGLYPH_PAIRS } from '../../../../Parser/main/parser/text/repair.mjs';
-import { normalizeText } from '../../ocr_runtime/Praser/parser/text/normalize.mjs';
+import { normalizeText } from '../../../../Parser/main/parser/text/normalize.mjs';
 import { MAX_OCR_PIXELS } from '../../../../Parser/main/parser/core/limits.mjs';
 
 const reply = (v) => process.stdout.write('OCR_RESULT ' + JSON.stringify(v) + '\n');

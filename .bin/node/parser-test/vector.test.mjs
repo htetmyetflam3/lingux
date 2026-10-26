@@ -10,7 +10,7 @@ import { loadVectorIndex, matchRasterMask, vectorSheetFiles } from "../../../Par
 import {
   loadDetector,
   streamPdfPages,
-} from "../../../Parser/main/parser/pipeline.mjs";
+} from "../../../Parser/extend/pipeline.mjs";
 import { prepareVectorLayout } from "../../../Parser/main/parser/codepage/resolve.mjs";
 
 // working-branch mapping: Parsed/fixtures/ exists on no branch; the same
@@ -152,7 +152,7 @@ test("runtime outline layout selects only WinInnwa and preserves Latin resources
    running. Nothing here renders a page or opens a font. */
 test("a claim is refused when the witness crowd cannot place the pair", async () => {
   const { matchRasterMask, getDefaultVectorIndex, isCrossFontAlias } = await import("../../../Parser/main/parser/shape/match.mjs");
-  const alias = JSON.parse(fs.readFileSync(new URL("../../../Parser/main/parser/map/vector/shape-alias.json", import.meta.url), "utf8"));
+  const alias = JSON.parse(fs.readFileSync(new URL("../../../Parser/main/parser/jason-map/vector/shape-alias.json", import.meta.url), "utf8"));
   assert.ok(alias.pairs.length > 0, "the generator produced a veto list");
   assert.ok(alias.pairs.every(([a, b]) => a !== b));
 

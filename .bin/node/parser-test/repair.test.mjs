@@ -112,7 +112,7 @@ test("zawcode mend rewrites scan-flagged spans and nothing else", async () => {
   const { fileURLToPath } = await import("node:url");
   const { loadMap, dictionaryWords } = await import("../../../Parser/main/parser/text/scan.mjs");
   const { mendZawCodeText } = await import("../../../Parser/main/parser/text/repair.mjs");
-  const data = loadMap(fileURLToPath(new URL("../../../master.json.enc", import.meta.url)));
+  const data = loadMap(fileURLToPath(new URL("../../../.data/master.json.enc", import.meta.url)));
   const dict = dictionaryWords(data);
   const standalone = data?.mapData?.newClause?.standalone || [];
 
@@ -129,7 +129,7 @@ test("zawcode guard splits stored order by readable result, not font name", asyn
   const { fileURLToPath } = await import("node:url");
   const { loadMap, dictionaryWords } = await import("../../../Parser/main/parser/text/scan.mjs");
   const { zawCodeGuard } = await import("../../../Parser/main/parser/text/repair.mjs");
-  const data = loadMap(fileURLToPath(new URL("../../../master.json.enc", import.meta.url)));
+  const data = loadMap(fileURLToPath(new URL("../../../.data/master.json.enc", import.meta.url)));
   const dict = dictionaryWords(data);
   const standalone = data?.mapData?.newClause?.standalone || [];
 
@@ -174,7 +174,7 @@ test("zawcode mend retraces misnamed and dropped glyphs at scan coordinates", as
   const { fileURLToPath } = await import("node:url");
   const { loadMap, dictionaryWords } = await import("../../../Parser/main/parser/text/scan.mjs");
   const { mendZawCodeText } = await import("../../../Parser/main/parser/text/repair.mjs");
-  const data = loadMap(fileURLToPath(new URL("../../../master.json.enc", import.meta.url)));
+  const data = loadMap(fileURLToPath(new URL("../../../.data/master.json.enc", import.meta.url)));
   const dict = dictionaryWords(data);
   const standalone = data?.mapData?.newClause?.standalone || [];
 
@@ -211,7 +211,7 @@ test("zawcode mend frames cover the damage that still segments", async () => {
   const { fileURLToPath } = await import("node:url");
   const { loadMap, dictionaryWords } = await import("../../../Parser/main/parser/text/scan.mjs");
   const { mendZawCodeText } = await import("../../../Parser/main/parser/text/repair.mjs");
-  const data = loadMap(fileURLToPath(new URL("../../../master.json.enc", import.meta.url)));
+  const data = loadMap(fileURLToPath(new URL("../../../.data/master.json.enc", import.meta.url)));
   const dict = dictionaryWords(data);
   const standalone = data?.mapData?.newClause?.standalone || [];
 
@@ -240,7 +240,7 @@ test("repairFromScanVerdict mends only the zawcode path, text and lines together
   const { fileURLToPath } = await import("node:url");
   const { loadMap, dictionaryWords } = await import("../../../Parser/main/parser/text/scan.mjs");
   const { repairFromScanVerdict } = await import("../../../Parser/main/parser/text/repair.mjs");
-  const data = loadMap(fileURLToPath(new URL("../../../master.json.enc", import.meta.url)));
+  const data = loadMap(fileURLToPath(new URL("../../../.data/master.json.enc", import.meta.url)));
   const dict = dictionaryWords(data);
   const standalone = data?.mapData?.newClause?.standalone || [];
   const line = "မြေတော်တွင် \u1014\u103C\u1031\u1015\u102E ကြေးဇူးပါ";

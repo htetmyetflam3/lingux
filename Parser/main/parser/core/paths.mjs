@@ -12,7 +12,7 @@ export const REPO_ROOT = path.dirname(PARSED_ROOT);  // the checkout root
 export const UPLOAD_DIR = path.join(PARSED_ROOT, "upload");
 export const INPUT_DIR = path.join(UPLOAD_DIR, "input");
 
-export const MAP_DIR = path.join(PARSER_DIR, "map");
+export const MAP_DIR = path.join(PARSER_DIR, "jason-map");
 export const VECTOR_MAP_DIR = path.join(MAP_DIR, "vector");
 export const MODEL_DIR = path.join(PARSER_DIR, "model");
 export const DEFAULT_MODEL_PATH = path.join(MODEL_DIR, "zawgyiUnicodeModel.dat");
